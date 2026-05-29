@@ -70,3 +70,20 @@
   cursor: pointer !important;
   white-space: nowrap !important;
 }
+
+/* Custom Wallet Button */
+.custom-wallet-btn {
+  background: #111 !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 8px 14px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.2px !important;
+  cursor: pointer !important;
+  min-width: auto !important;
+}
+.custom-wallet-btn:hover {
+  background: #222 !important;
+}

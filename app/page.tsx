@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { ClaimButton } from "./components/ClaimButton";
-import { Wallet } from "@coinbase/onchainkit/wallet";
+import { ConnectWallet } from "@coinbase/onchainkit/wallet";
+import { useAccount } from "wagmi";
 
 type Screen = "home" | "explore" | "detail" | "create" | "success" | "notifications";
 
@@ -21,6 +22,7 @@ export default function Home() {
   const [dropRecipients, setDropRecipients] = useState("50");
   const [dropMessage, setDropMessage] = useState("");
   const [dropExpiry, setDropExpiry] = useState("6h");
+  const { address, isConnected } = useAccount();
 
   useEffect(() => {
     if (!isMiniAppReady) setMiniAppReady();
@@ -281,7 +283,10 @@ export default function Home() {
           </div>
           <span style={{ fontSize: 15, fontWeight: 800, color: "#111", letterSpacing: -0.5 }}>basedrop</span>
         </div>
-        <Wallet />
+        <ConnectWallet
+          className="custom-wallet-btn"
+          disconnectedLabel="Connect"
+        />
       </div>
 
       <div style={{ margin: "16px 14px 0", background: "#111", borderRadius: 24, padding: "20px 18px", position: "relative", overflow: "hidden" }}>
