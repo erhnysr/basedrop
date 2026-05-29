@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { ClaimButton } from "./components/ClaimButton";
+import { Wallet } from "@coinbase/onchainkit/wallet";
 
 type Screen = "home" | "explore" | "detail" | "create" | "success" | "notifications";
 
@@ -16,6 +17,10 @@ export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
   const [selectedDrop, setSelectedDrop] = useState(drops[0]);
   const [_claimed, setClaimed] = useState(false);
+  const [dropAmount, setDropAmount] = useState("1");
+  const [dropRecipients, setDropRecipients] = useState("50");
+  const [dropMessage, setDropMessage] = useState("");
+  const [dropExpiry, setDropExpiry] = useState("6h");
 
   useEffect(() => {
     if (!isMiniAppReady) setMiniAppReady();
@@ -116,31 +121,33 @@ export default function Home() {
       </div>
       <div style={{ padding: "16px 18px 100px" }}>
         <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-          {[["Amount each", "$1.00"], ["Recipients", "50"]].map(([l, v]) => (
-            <div key={l} style={{ flex: 1 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: "#bbb", letterSpacing: 0.6, marginBottom: 5, textTransform: "uppercase" }}>{l}</div>
-              <input defaultValue={v} style={{ width: "100%", background: "#fff", border: "1.5px solid #F0F0F0", borderRadius: 12, padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "#111", outline: "none", boxSizing: "border-box" }} />
+          <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#bbb", letterSpacing: 0.6, marginBottom: 5, textTransform: "uppercase" }}>Amount each ($)</div>
+              <input value={dropAmount} onChange={(e) => setDropAmount(e.target.value)} placeholder="1.00" style={{ width: "100%", background: "#fff", border: "1.5px solid #F0F0F0", borderRadius: 12, padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "#111", outline: "none", boxSizing: "border-box" }} />
             </div>
-          ))}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#bbb", letterSpacing: 0.6, marginBottom: 5, textTransform: "uppercase" }}>Recipients</div>
+              <input value={dropRecipients} onChange={(e) => setDropRecipients(e.target.value)} placeholder="50" style={{ width: "100%", background: "#fff", border: "1.5px solid #F0F0F0", borderRadius: 12, padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "#111", outline: "none", boxSizing: "border-box" }} />
+            </div>
         </div>
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: "#bbb", letterSpacing: 0.6, marginBottom: 5, textTransform: "uppercase" }}>Expires in</div>
           <div style={{ display: "flex", gap: 6 }}>
             {["1h", "6h", "24h", "48h"].map(t => (
-              <div key={t} style={{ flex: 1, border: `1.5px solid ${t === "6h" ? "#111" : "#F0F0F0"}`, borderRadius: 10, padding: "8px 4px", fontSize: 11, fontWeight: 700, color: t === "6h" ? "#111" : "#bbb", textAlign: "center", cursor: "pointer", background: "#fff" }}>{t}</div>
+              <div key={t} onClick={() => setDropExpiry(t)} style={{ flex: 1, border: `1.5px solid ${t === dropExpiry ? "#111" : "#F0F0F0"}`, borderRadius: 10, padding: "8px 4px", fontSize: 11, fontWeight: 700, color: t === dropExpiry ? "#111" : "#bbb", textAlign: "center", cursor: "pointer", background: "#fff" }}>{t}</div>
             ))}
           </div>
         </div>
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: "#bbb", letterSpacing: 0.6, marginBottom: 5, textTransform: "uppercase" }}>Message</div>
-          <input defaultValue="Thanks for the support! 🙏" style={{ width: "100%", background: "#fff", border: "1.5px solid #F0F0F0", borderRadius: 12, padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#111", outline: "none", boxSizing: "border-box" }} />
+          <input value={dropMessage} onChange={(e) => setDropMessage(e.target.value)} placeholder="Thanks for the support! 🙏" style={{ width: "100%", background: "#fff", border: "1.5px solid #F0F0F0", borderRadius: 12, padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#111", outline: "none", boxSizing: "border-box" }} />
         </div>
         <div style={{ background: "#F8F7FF", border: "1.5px solid #EBEBFF", borderRadius: 14, padding: "12px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ fontSize: 11, color: "#bbb" }}>Total to deposit</div>
-            <div style={{ fontSize: 9, color: "#ccc", marginTop: 2 }}>50 × $1.00 USDC</div>
+            <div style={{ fontSize: 9, color: "#ccc", marginTop: 2 }}>{dropRecipients} × ${dropAmount} USDC</div>
           </div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#111", letterSpacing: -0.8 }}>$50</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#111", letterSpacing: -0.8 }}>${(parseFloat(dropAmount || "0") * parseInt(dropRecipients || "0")).toFixed(0)}</div>
         </div>
         <button style={{ width: "100%", background: "#111", color: "#fff", border: "none", borderRadius: 16, padding: 14, fontSize: 14, fontWeight: 800, cursor: "pointer", marginBottom: 8 }}>Launch drop 🚀</button>
         <div style={{ textAlign: "center", fontSize: 10, color: "#ccc" }}>Zero platform fees · Powered by Base</div>
@@ -274,7 +281,7 @@ export default function Home() {
           </div>
           <span style={{ fontSize: 15, fontWeight: 800, color: "#111", letterSpacing: -0.5 }}>basedrop</span>
         </div>
-        <div style={{ width: 32, height: 32, background: "linear-gradient(135deg, #6366F1, #8B5CF6)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#fff", fontWeight: 700 }}>E</div>
+        <Wallet />
       </div>
 
       <div style={{ margin: "16px 14px 0", background: "#111", borderRadius: 24, padding: "20px 18px", position: "relative", overflow: "hidden" }}>
