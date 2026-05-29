@@ -3,11 +3,6 @@ const ROOT_URL =
   (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
   "http://localhost:3000";
 
-/**
- * MiniApp configuration object. Must follow the mini app manifest specification.
- *
- * @see {@link https://docs.base.org/mini-apps/features/manifest}
- */
 export const minikitConfig = {
   accountAssociation: {
     header: "",
@@ -15,25 +10,25 @@ export const minikitConfig = {
     signature: "",
   },
   baseBuilder: {
-    ownerAddress: "",
+    ownerAddress: "0xD3467E00F6d7275C74e60fc7A1E5eD526893B29F",
   },
   miniapp: {
     version: "1",
-    name: "basedrop",
-    subtitle: "",
-    description: "",
+    name: "Basedrop",
+    subtitle: "Drop USDC to your community",
+    description: "Basedrop lets creators drop USDC to their community instantly. Create a drop, share it, and watch your community claim — all onchain on Base with zero platform fees.",
     screenshotUrls: [],
     iconUrl: `${ROOT_URL}/icon.png`,
     splashImageUrl: `${ROOT_URL}/splash.png`,
-    splashBackgroundColor: "#000000",
+    splashBackgroundColor: "#FAFAFA",
     homeUrl: ROOT_URL,
     webhookUrl: `${ROOT_URL}/api/webhook`,
     primaryCategory: "utility",
-    tags: ["example"],
+    tags: ["usdc", "tipping", "creator", "base", "onchain"],
     heroImageUrl: `${ROOT_URL}/hero.png`,
-    tagline: "",
-    ogTitle: "",
-    ogDescription: "",
+    tagline: "Drop USDC to your community 💧",
+    ogTitle: "Basedrop — Drop USDC to your community",
+    ogDescription: "Create drops, share with your community, claim USDC instantly. Zero fees. Fully onchain on Base.",
     ogImageUrl: `${ROOT_URL}/hero.png`,
   },
 } as const;
