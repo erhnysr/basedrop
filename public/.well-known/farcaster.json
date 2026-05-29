@@ -1,0 +1,16 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjMzMzM2NjAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhkNzZEMDlhOTYxRmVmZEE1MkNlMTc3RTFDNDU1MTU4MGJEQjkzQTVFIn0",
+    "payload": "eyJkb21haW4iOiJiYXNlZHJvcC1jaGkudmVyY2VsLmFwcCJ9",
+    "signature": "ASqHBdULQvWVxYklDEhVDNC0sohQ/TvqEzI5V8RtsMUwrZwCE+RQ9pG7AW4RGRjd4Kz2HWDJqnzbJpGZLUpR8xw="
+  },
+  "frame": {
+    "version": "1",
+    "name": "Basedrop",
+    "iconUrl": "https://basedrop-chi.vercel.app/icon.png",
+    "homeUrl": "https://basedrop-chi.vercel.app",
+    "splashImageUrl": "https://basedrop-chi.vercel.app/splash.png",
+    "splashBackgroundColor": "#111111",
+    "webhookUrl": "https://basedrop-chi.vercel.app/api/webhook"
+  }
+}
