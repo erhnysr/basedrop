@@ -15,7 +15,7 @@ export default function Home() {
   const { setMiniAppReady, isMiniAppReady } = useMiniKit();
   const [screen, setScreen] = useState<Screen>("home");
   const [selectedDrop, setSelectedDrop] = useState(drops[0]);
-  const [claimed, setClaimed] = useState(false);
+  const [_claimed, setClaimed] = useState(false);
 
   useEffect(() => {
     if (!isMiniAppReady) setMiniAppReady();
@@ -51,7 +51,7 @@ export default function Home() {
           <div style={{ fontSize: 7, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>USDC</div>
         </div>
       </div>
-      <div style={{ fontSize: 11, color: "#888", lineHeight: 1.6, marginBottom: 12, fontStyle: "italic" }}>"{drop.msg}"</div>
+      <div style={{ fontSize: 11, color: "#888", lineHeight: 1.6, marginBottom: 12, fontStyle: "italic" }}>&ldquo;{drop.msg}&rdquo;</div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
@@ -156,7 +156,7 @@ export default function Home() {
         <div onClick={() => setScreen("explore")} style={{ textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 600, marginBottom: 14, cursor: "pointer", position: "relative" }}>← Back</div>
         <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(255,255,255,0.1)", margin: "0 auto 10px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, border: "1.5px solid rgba(255,255,255,0.2)", position: "relative" }}>{selectedDrop.emoji}</div>
         <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginBottom: 4, position: "relative" }}>{selectedDrop.name}</div>
-        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14, fontStyle: "italic", position: "relative" }}>"{selectedDrop.msg}"</div>
+        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14, fontStyle: "italic", position: "relative" }}>&ldquo;{selectedDrop.msg}&rdquo;</div>
         <div style={{ fontSize: 40, fontWeight: 800, color: "#fff", letterSpacing: -1.5, position: "relative" }}>{selectedDrop.amount}</div>
         <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", position: "relative", marginTop: 2 }}>USDC per claim</div>
       </div>
