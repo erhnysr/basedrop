@@ -56,7 +56,7 @@ export default function Page() {
       functionName: "getDropInfo",
       args: [BigInt(claimDropId)],
     }).then(setDropInfo).catch(() => {});
-  }, [claimDropId, publicClient]);
+  }, [claimDropId]);
 
   const { writeContractAsync } = useWriteContract();
 
@@ -121,7 +121,7 @@ export default function Page() {
         functionName: "claim",
         args: [BigInt(claimDropId)],
       });
-      await publicClient.waitForTransactionReceipt({ hash: tx });
+      await rpc.waitForTransactionReceipt({ hash: tx });
       setClaimStep("done");
     } catch (e) {
       console.error(e);

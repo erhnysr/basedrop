@@ -25,7 +25,7 @@ export function RootProvider({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <OnchainKitProvider chain={base}>
+        <OnchainKitProvider chain={base} config={{ wallet: { display: "modal" } }} miniKit={{ enabled: true, autoConnect: true }}>
           {children}
         </OnchainKitProvider>
       </QueryClientProvider>
