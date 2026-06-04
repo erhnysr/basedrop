@@ -25,7 +25,7 @@ export function RootProvider({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <OnchainKitProvider chain={base} config={{ appearance: { mode: "auto" } }}>
+        <OnchainKitProvider chain={base}>
           {children}
         </OnchainKitProvider>
       </QueryClientProvider>
