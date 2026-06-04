@@ -54,7 +54,7 @@ export default function Page() {
       address: ESCROW_ADDRESS as `0x${string}`,
       abi: ESCROW_ABI,
       functionName: "getDropInfo",
-      args: [BigInt(claimDropId)],
+      args: [BigInt(parseInt(claimDropId) || 0)],
     }).then(setDropInfo).catch(() => {});
   }, [claimDropId]);
 
@@ -119,7 +119,7 @@ export default function Page() {
         address: ESCROW_ADDRESS as `0x${string}`,
         abi: ESCROW_ABI,
         functionName: "claim",
-        args: [BigInt(claimDropId)],
+        args: [BigInt(parseInt(claimDropId) || 0)],
       });
       await rpc.waitForTransactionReceipt({ hash: tx });
       setClaimStep("done");
