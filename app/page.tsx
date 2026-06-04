@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient } from "wagmi";
+import { useAccount, useWriteContract, usePublicClient } from "wagmi";
 import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURATIONS } from "../lib/contract";
 import { decodeEventLog } from "viem";
@@ -21,93 +21,105 @@ export default function Page() {
   const [step, setStep] = useState<"idle" | "approving" | "creating" | "done">("idle");
   const [createdDropId, setCreatedDropId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-
   const [claimDropId, setClaimDropId] = useState("");
   const [claimStep, setClaimStep] = useState<"idle" | "claiming" | "done">("idle");
+  const [dropInfo, setDropInfo] = useState<any>(null);
+
+  const amountRef = useRef(amountPerClaim);
+  const claimsRef = useRef(totalClaims);
+  const durationRef = useRef(duration);
+  const messageRef = useRef(message);
+
+  useEffect(() => { amountRef.current = amountPerClaim; }, [amountPerClaim]);
+  useEffect(() => { claimsRef.current = totalClaims; }, [totalClaims]);
+  useEffect(() => { durationRef.current = duration; }, [duration]);
+  useEffect(() => { messageRef.current = message; }, [message]);
 
   useEffect(() => {
     if (!isFrameReady) setFrameReady();
   }, [setFrameReady, isFrameReady]);
 
-  const totalAmount = Math.round(parseFloat(amountPerClaim || "0") * parseInt(totalClaims || "0") * 10 ** USDC_DECIMALS);
-  const amountPerClaimUnits = Math.round(parseFloat(amountPerClaim || "0") * 10 ** USDC_DECIMALS);
-
-  const { writeContract: approve, data: approveTxHash } = useWriteContract();
-  const { isSuccess: approveSuccess } = useWaitForTransactionReceipt({ hash: approveTxHash });
-
-  const { writeContract: createDrop, data: createTxHash } = useWriteContract();
-  const { isSuccess: createSuccess } = useWaitForTransactionReceipt({ hash: createTxHash });
-
-  const { writeContract: claim, data: claimTxHash } = useWriteContract();
-  const { isSuccess: claimSuccess } = useWaitForTransactionReceipt({ hash: claimTxHash });
-
-  const { data: dropInfo } = useReadContract({
-    address: ESCROW_ADDRESS as `0x${string}`,
-    abi: ESCROW_ABI,
-    functionName: "getDropInfo",
-    args: claimDropId ? [BigInt(claimDropId)] : undefined,
-    query: { enabled: !!claimDropId && !isNaN(Number(claimDropId)) },
-  });
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("claim");
+    if (id) { setClaimDropId(id); setView("claim"); }
+  }, []);
 
   useEffect(() => {
-    if (approveSuccess && step === "approving") {
+    if (!claimDropId || isNaN(Number(claimDropId)) || !publicClient) return;
+    publicClient.readContract({
+      address: ESCROW_ADDRESS as `0x${string}`,
+      abi: ESCROW_ABI,
+      functionName: "getDropInfo",
+      args: [BigInt(claimDropId)],
+    }).then(setDropInfo).catch(() => {});
+  }, [claimDropId, publicClient]);
+
+  const { writeContractAsync } = useWriteContract();
+
+  const handleCreate = async () => {
+    if (!isConnected || !address || !publicClient) return;
+    try {
+      const amt = amountRef.current;
+      const claims = claimsRef.current;
+      const dur = durationRef.current;
+      const msg = messageRef.current;
+
+      const amtUnits = BigInt(Math.round(parseFloat(amt) * 10 ** USDC_DECIMALS));
+      const totalAmt = amtUnits * BigInt(claims);
+
+      setStep("approving");
+      const approveTx = await writeContractAsync({
+        address: USDC_ADDRESS,
+        abi: USDC_ABI,
+        functionName: "approve",
+        args: [ESCROW_ADDRESS as `0x${string}`, totalAmt],
+      });
+      await publicClient.waitForTransactionReceipt({ hash: approveTx });
+
       setStep("creating");
-      createDrop({
+      const createTx = await writeContractAsync({
         address: ESCROW_ADDRESS as `0x${string}`,
         abi: ESCROW_ABI,
         functionName: "createDrop",
-        args: [BigInt(amountPerClaimUnits), BigInt(totalClaims), BigInt(DURATIONS[duration]), message],
+        args: [amtUnits, BigInt(claims), BigInt(DURATIONS[dur]), msg],
       });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: createTx });
+
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({ abi: ESCROW_ABI, data: log.data, topics: log.topics });
+          if (decoded.eventName === "DropCreated") {
+            setCreatedDropId(String((decoded.args as any).dropId));
+            setStep("done");
+            return;
+          }
+        } catch {}
+      }
+      setCreatedDropId("0");
+      setStep("done");
+    } catch (e) {
+      console.error(e);
+      setStep("idle");
     }
-  }, [approveSuccess, step]);
-
-  useEffect(() => {
-    if (createSuccess && step === "creating" && createTxHash && publicClient) {
-      publicClient.getTransactionReceipt({ hash: createTxHash }).then((receipt) => {
-        for (const log of receipt.logs) {
-          try {
-            const decoded = decodeEventLog({
-              abi: ESCROW_ABI,
-              data: log.data,
-              topics: log.topics,
-            });
-            if (decoded.eventName === "DropCreated") {
-              setCreatedDropId(String((decoded.args as any).dropId));
-              setStep("done");
-              return;
-            }
-          } catch {}
-        }
-        setCreatedDropId("0");
-        setStep("done");
-      });
-    }
-  }, [createSuccess, step]);
-
-  useEffect(() => {
-    if (claimSuccess && claimStep === "claiming") setClaimStep("done");
-  }, [claimSuccess]);
-
-  const handleCreate = () => {
-    if (!isConnected || !address) return;
-    setStep("approving");
-    approve({
-      address: USDC_ADDRESS,
-      abi: USDC_ABI,
-      functionName: "approve",
-      args: [ESCROW_ADDRESS as `0x${string}`, BigInt(totalAmount)],
-    });
   };
 
-  const handleClaim = () => {
-    if (!claimDropId) return;
-    setClaimStep("claiming");
-    claim({
-      address: ESCROW_ADDRESS as `0x${string}`,
-      abi: ESCROW_ABI,
-      functionName: "claim",
-      args: [BigInt(claimDropId)],
-    });
+  const handleClaim = async () => {
+    if (!claimDropId || !publicClient) return;
+    try {
+      setClaimStep("claiming");
+      const tx = await writeContractAsync({
+        address: ESCROW_ADDRESS as `0x${string}`,
+        abi: ESCROW_ABI,
+        functionName: "claim",
+        args: [BigInt(claimDropId)],
+      });
+      await publicClient.waitForTransactionReceipt({ hash: tx });
+      setClaimStep("done");
+    } catch (e) {
+      console.error(e);
+      setClaimStep("idle");
+    }
   };
 
   const shareLink = createdDropId !== null
@@ -139,21 +151,12 @@ export default function Page() {
     linkBox: { background: "#f0f4ff", borderRadius: 10, padding: "10px 12px", fontSize: 12, color: "#333", wordBreak: "break-all" as const, marginBottom: 10, fontFamily: "monospace" },
   };
 
-  // Auto-fill claimDropId from URL
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("claim");
-    if (id) { setClaimDropId(id); setView("claim"); }
-  }, []);
-
   if (view === "home") return (
     <div style={s.page}>
       <div style={s.card}>
         <div style={s.title}>💧 Basedrop</div>
         <div style={s.sub}>Drop USDC to your community — instantly, onchain.</div>
-        {!isConnected ? (
-          <ConnectWallet />
-        ) : (
+        {!isConnected ? <ConnectWallet /> : (
           <>
             <button style={{ ...s.btn, ...s.btnBlue }} onClick={() => setView("create")}>🚀 Create Drop</button>
             <button style={{ ...s.btn, ...s.btnGray }} onClick={() => setView("claim")}>💰 Claim Drop</button>
@@ -170,42 +173,34 @@ export default function Page() {
         <div style={s.back} onClick={() => { setView("home"); setStep("idle"); setCreatedDropId(null); }}>← Back</div>
         <div style={s.title}>Create Drop</div>
         <div style={s.sub}>Lock USDC for your community to claim.</div>
-
         {step === "done" && createdDropId !== null ? (
           <div>
-            <div style={s.success}>✅ Drop #{createdDropId} created! Share the link below.</div>
+            <div style={s.success}>✅ Drop #{createdDropId} created!</div>
             <div style={{ height: 12 }} />
             <label style={s.label}>Share link</label>
             <div style={s.linkBox}>{shareLink}</div>
             <button style={{ ...s.btn, ...(copied ? s.btnGreen : s.btnBlue) }} onClick={handleCopy}>
               {copied ? "✅ Copied!" : "📋 Copy Link"}
             </button>
-            <button style={{ ...s.btn, ...s.btnGray }} onClick={() => { setView("home"); setStep("idle"); setCreatedDropId(null); }}>
-              Create Another
-            </button>
+            <button style={{ ...s.btn, ...s.btnGray }} onClick={() => { setStep("idle"); setCreatedDropId(null); }}>Create Another</button>
           </div>
         ) : (
           <>
             <label style={s.label}>Amount per claim (USDC)</label>
-            <input style={s.input} type="number" min="0.01" step="0.01" value={amountPerClaim} onChange={e => setAmountPerClaim(e.target.value)} placeholder="1.00" />
-
+            <input style={s.input} type="number" min="0.01" step="0.01" value={amountPerClaim} onChange={e => setAmountPerClaim(e.target.value)} />
             <label style={s.label}>Number of claims</label>
-            <input style={s.input} type="number" min="1" value={totalClaims} onChange={e => setTotalClaims(e.target.value)} placeholder="10" />
-
+            <input style={s.input} type="number" min="1" value={totalClaims} onChange={e => setTotalClaims(e.target.value)} />
             <label style={s.label}>Duration</label>
             <div style={s.row}>
               {Object.keys(DURATIONS).map(d => (
                 <span key={d} style={duration === d ? s.tagActive : s.tag} onClick={() => setDuration(d)}>{d}</span>
               ))}
             </div>
-
             <label style={s.label}>Message (optional)</label>
             <input style={s.input} value={message} onChange={e => setMessage(e.target.value)} placeholder="Thanks for being part of the community!" />
-
             <div style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>
               Total: <strong>${(parseFloat(amountPerClaim || "0") * parseInt(totalClaims || "0")).toFixed(2)} USDC</strong>
             </div>
-
             <button style={{ ...s.btn, ...s.btnBlue, opacity: step !== "idle" ? 0.6 : 1 }} onClick={handleCreate} disabled={step !== "idle"}>
               {step === "idle" && "Launch Drop 🚀"}
               {step === "approving" && "Approving USDC..."}
@@ -223,21 +218,18 @@ export default function Page() {
         <div style={s.back} onClick={() => setView("home")}>← Back</div>
         <div style={s.title}>Claim Drop</div>
         <div style={s.sub}>Enter a drop ID to claim your USDC.</div>
-
         <label style={s.label}>Drop ID</label>
         <input style={s.input} value={claimDropId} onChange={e => setClaimDropId(e.target.value)} placeholder="e.g. 0" />
-
         {dropInfo && (
           <div style={{ background: "#f8f8f8", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 13 }}>
-            <div>💬 {String((dropInfo as any)[5])}</div>
-            <div>💵 ${(Number((dropInfo as any)[1]) / 10 ** USDC_DECIMALS).toFixed(2)} per claim</div>
-            <div>👥 {String((dropInfo as any)[3])}/{String((dropInfo as any)[2])} claimed</div>
-            <div>⏰ Expires: {new Date(Number((dropInfo as any)[4]) * 1000).toLocaleString()}</div>
+            <div>💬 {String(dropInfo[5])}</div>
+            <div>💵 ${(Number(dropInfo[1]) / 10 ** USDC_DECIMALS).toFixed(2)} per claim</div>
+            <div>👥 {String(dropInfo[3])}/{String(dropInfo[2])} claimed</div>
+            <div>⏰ {new Date(Number(dropInfo[4]) * 1000).toLocaleString()}</div>
           </div>
         )}
-
         {claimStep === "done" ? (
-          <div style={s.success}>✅ Claimed successfully! USDC sent to your wallet.</div>
+          <div style={s.success}>✅ Claimed! USDC sent to your wallet.</div>
         ) : (
           <button style={{ ...s.btn, ...s.btnBlue, opacity: !claimDropId || claimStep === "claiming" ? 0.6 : 1 }} onClick={handleClaim} disabled={!claimDropId || claimStep === "claiming"}>
             {claimStep === "claiming" ? "Claiming..." : "Claim 💧"}
