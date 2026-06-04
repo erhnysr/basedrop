@@ -4,7 +4,7 @@ import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useAccount, useWriteContract, usePublicClient } from "wagmi";
 import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURATIONS } from "../lib/contract";
-import { decodeEventLog } from "viem";
+
 
 type View = "home" | "create" | "claim";
 
@@ -69,35 +69,39 @@ export default function Page() {
       const totalAmt = amtUnits * BigInt(claims);
 
       setStep("approving");
-      const approveTx = await writeContractAsync({
+      await writeContractAsync({
         address: USDC_ADDRESS,
         abi: USDC_ABI,
         functionName: "approve",
         args: [ESCROW_ADDRESS as `0x${string}`, totalAmt],
       });
-      await publicClient.waitForTransactionReceipt({ hash: approveTx });
+      for (let i = 0; i < 30; i++) {
+        const a = await publicClient.readContract({
+          address: USDC_ADDRESS as `0x${string}`, abi: USDC_ABI,
+          functionName: "allowance", args: [address, ESCROW_ADDRESS as `0x${string}`],
+        });
+        if ((a as bigint) >= totalAmt) break;
+        await new Promise(r => setTimeout(r, 2000));
+      }
 
       setStep("creating");
-      const createTx = await writeContractAsync({
+      const prevId = await publicClient.readContract({
+        address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "nextDropId",
+      }) as bigint;
+      await writeContractAsync({
         address: ESCROW_ADDRESS as `0x${string}`,
         abi: ESCROW_ABI,
         functionName: "createDrop",
         args: [amtUnits, BigInt(claims), BigInt(DURATIONS[dur]), msg],
       });
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: createTx });
-
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({ abi: ESCROW_ABI, data: log.data, topics: log.topics });
-          if (decoded.eventName === "DropCreated") {
-            setCreatedDropId(String((decoded.args as any).dropId));
-            setStep("done");
-            return;
-          }
-        } catch {}
+      for (let i = 0; i < 30; i++) {
+        const nId = await publicClient.readContract({
+          address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "nextDropId",
+        }) as bigint;
+        if (nId > prevId) { setCreatedDropId(String(Number(prevId))); setStep("done"); return; }
+        await new Promise(r => setTimeout(r, 2000));
       }
-      setCreatedDropId("0");
-      setStep("done");
+      setStep("done"); setCreatedDropId("0");
     } catch (e) {
       console.error(e);
       setStep("idle");
