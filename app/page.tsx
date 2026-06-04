@@ -1,7 +1,11 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useAccount, useWriteContract, usePublicClient } from "wagmi";
+import { useAccount, useWriteContract } from "wagmi";
+import { createPublicClient, http } from "viem";
+import { base } from "viem/chains";
+
+const rpc = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
 import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURATIONS } from "../lib/contract";
 
@@ -11,7 +15,6 @@ type View = "home" | "create" | "claim";
 export default function Page() {
   const { setFrameReady, isFrameReady } = useMiniKit();
   const { address, isConnected } = useAccount();
-  const publicClient = usePublicClient();
   const [view, setView] = useState<View>("home");
 
   const [amountPerClaim, setAmountPerClaim] = useState("1");
@@ -46,8 +49,8 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    if (!claimDropId || isNaN(Number(claimDropId)) || !publicClient) return;
-    publicClient.readContract({
+    if (!claimDropId || isNaN(Number(claimDropId)) || false) return;
+    rpc.readContract({
       address: ESCROW_ADDRESS as `0x${string}`,
       abi: ESCROW_ABI,
       functionName: "getDropInfo",
@@ -58,7 +61,7 @@ export default function Page() {
   const { writeContractAsync } = useWriteContract();
 
   const handleCreate = async () => {
-    if (!isConnected || !address || !publicClient) return;
+    if (!isConnected || !address || false) return;
     try {
       const amt = amountRef.current;
       const claims = claimsRef.current;
@@ -76,7 +79,7 @@ export default function Page() {
         args: [ESCROW_ADDRESS as `0x${string}`, totalAmt],
       });
       for (let i = 0; i < 30; i++) {
-        const a = await publicClient.readContract({
+        const a = await rpc.readContract({
           address: USDC_ADDRESS as `0x${string}`, abi: USDC_ABI,
           functionName: "allowance", args: [address, ESCROW_ADDRESS as `0x${string}`],
         });
@@ -85,7 +88,7 @@ export default function Page() {
       }
 
       setStep("creating");
-      const prevId = await publicClient.readContract({
+      const prevId = await rpc.readContract({
         address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "nextDropId",
       }) as bigint;
       await writeContractAsync({
@@ -95,7 +98,7 @@ export default function Page() {
         args: [amtUnits, BigInt(claims), BigInt(DURATIONS[dur]), msg],
       });
       for (let i = 0; i < 30; i++) {
-        const nId = await publicClient.readContract({
+        const nId = await rpc.readContract({
           address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "nextDropId",
         }) as bigint;
         if (nId > prevId) { setCreatedDropId(String(Number(prevId))); setStep("done"); return; }
@@ -109,7 +112,7 @@ export default function Page() {
   };
 
   const handleClaim = async () => {
-    if (!claimDropId || !publicClient) return;
+    if (!claimDropId || false) return;
     try {
       setClaimStep("claiming");
       const tx = await writeContractAsync({
