@@ -1,6 +1,7 @@
 "use client";
 import { ReactNode } from "react";
 import { base } from "wagmi/chains";
+import { http } from "wagmi";
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import "@coinbase/onchainkit/styles.css";
 
@@ -10,6 +11,8 @@ export function RootProvider({ children }: { children: ReactNode }) {
       apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
       chain={base}
       config={{
+        chains: [base],
+        transports: { [base.id]: http("https://mainnet.base.org") },
         appearance: {
           mode: "auto",
         },
