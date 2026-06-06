@@ -1,16 +1,38 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useAccount, useWriteContract } from "wagmi";
+import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
-
-const rpc = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
-import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURATIONS } from "../lib/contract";
 
+const rpc = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
 
 type View = "home" | "create" | "claim";
+
+interface DropInfo {
+  id: number;
+  creator: string;
+  amountPerClaim: bigint;
+  totalClaims: number;
+  claimedCount: number;
+  expiresAt: number;
+  message: string;
+  active: boolean;
+}
+
+function shortAddr(a: string) {
+  return a ? `${a.slice(0, 6)}...${a.slice(-4)}` : "";
+}
+function timeLeft(expiresAt: number) {
+  const diff = expiresAt - Math.floor(Date.now() / 1000);
+  if (diff <= 0) return "Expired";
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h left`;
+  return `${h}h ${m}m left`;
+}
 
 export default function Page() {
   const { setFrameReady, isFrameReady } = useMiniKit();
@@ -28,11 +50,13 @@ export default function Page() {
   const [claimStep, setClaimStep] = useState<"idle" | "claiming" | "done">("idle");
   const [dropInfo, setDropInfo] = useState<any>(null);
 
+  const [allDrops, setAllDrops] = useState<DropInfo[]>([]);
+  const [loadingDrops, setLoadingDrops] = useState(true);
+
   const amountRef = useRef(amountPerClaim);
   const claimsRef = useRef(totalClaims);
   const durationRef = useRef(duration);
   const messageRef = useRef(message);
-
   useEffect(() => { amountRef.current = amountPerClaim; }, [amountPerClaim]);
   useEffect(() => { claimsRef.current = totalClaims; }, [totalClaims]);
   useEffect(() => { durationRef.current = duration; }, [duration]);
@@ -48,8 +72,46 @@ export default function Page() {
     if (id) { setClaimDropId(id); setView("claim"); }
   }, []);
 
+  const fetchAllDrops = useCallback(async () => {
+    try {
+      const nextId = await rpc.readContract({
+        address: ESCROW_ADDRESS as `0x${string}`,
+        abi: ESCROW_ABI,
+        functionName: "nextDropId",
+      }) as bigint;
+      const count = Number(nextId);
+      const drops: DropInfo[] = [];
+      for (let i = count - 1; i >= 0 && i >= count - 20; i--) {
+        try {
+          const info = await rpc.readContract({
+            address: ESCROW_ADDRESS as `0x${string}`,
+            abi: ESCROW_ABI,
+            functionName: "getDropInfo",
+            args: [BigInt(i)],
+          }) as any;
+          drops.push({
+            id: i,
+            creator: info[0],
+            amountPerClaim: info[1],
+            totalClaims: Number(info[2]),
+            claimedCount: Number(info[3]),
+            expiresAt: Number(info[4]),
+            message: info[5],
+            active: info[6],
+          });
+        } catch {}
+      }
+      setAllDrops(drops);
+    } catch (e) {
+      console.error(e);
+    }
+    setLoadingDrops(false);
+  }, []);
+
+  useEffect(() => { fetchAllDrops(); }, [fetchAllDrops]);
+
   useEffect(() => {
-    if (!claimDropId || isNaN(Number(claimDropId)) || false) return;
+    if (!claimDropId || isNaN(Number(claimDropId))) return;
     rpc.readContract({
       address: ESCROW_ADDRESS as `0x${string}`,
       abi: ESCROW_ABI,
@@ -61,7 +123,7 @@ export default function Page() {
   const { writeContractAsync } = useWriteContract();
 
   const handleCreate = async () => {
-    if (!isConnected || !address || false) return;
+    if (!isConnected || !address) return;
     try {
       const amt = amountRef.current;
       const claims = claimsRef.current;
@@ -101,7 +163,7 @@ export default function Page() {
         const nId = await rpc.readContract({
           address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "nextDropId",
         }) as bigint;
-        if (nId > prevId) { setCreatedDropId(String(Number(prevId))); setStep("done"); return; }
+        if (nId > prevId) { setCreatedDropId(String(Number(prevId))); setStep("done"); fetchAllDrops(); return; }
         await new Promise(r => setTimeout(r, 2000));
       }
       setStep("done"); setCreatedDropId("0");
@@ -112,7 +174,7 @@ export default function Page() {
   };
 
   const handleClaim = async () => {
-    if (!claimDropId || false) return;
+    if (!claimDropId) return;
     try {
       setClaimStep("claiming");
       const tx = await writeContractAsync({
@@ -123,6 +185,7 @@ export default function Page() {
       });
       await rpc.waitForTransactionReceipt({ hash: tx });
       setClaimStep("done");
+      fetchAllDrops();
     } catch (e) {
       console.error(e);
       setClaimStep("idle");
@@ -139,9 +202,15 @@ export default function Page() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const openClaim = (id: number) => {
+    setClaimDropId(String(id));
+    setClaimStep("idle");
+    setView("claim");
+  };
+
   const s: Record<string, React.CSSProperties> = {
-    page: { minHeight: "100vh", background: "#0052FF", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "Inter, sans-serif" },
-    card: { background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 380, boxShadow: "0 8px 32px rgba(0,0,0,0.12)" },
+    page: { minHeight: "100vh", background: "#0052FF", display: "flex", flexDirection: "column", alignItems: "center", padding: 24, fontFamily: "Inter, sans-serif" },
+    card: { background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 420, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", marginTop: 40 },
     title: { fontSize: 28, fontWeight: 800, color: "#0052FF", marginBottom: 4 },
     sub: { fontSize: 14, color: "#666", marginBottom: 24 },
     btn: { width: "100%", padding: "14px 0", borderRadius: 12, border: "none", fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 10 },
@@ -156,8 +225,12 @@ export default function Page() {
     back: { fontSize: 13, color: "#0052FF", cursor: "pointer", marginBottom: 16, fontWeight: 600 },
     success: { background: "#e8f9f0", border: "1px solid #4caf50", borderRadius: 10, padding: 14, fontSize: 13, color: "#2e7d32", marginTop: 12 },
     linkBox: { background: "#f0f4ff", borderRadius: 10, padding: "10px 12px", fontSize: 12, color: "#333", wordBreak: "break-all" as const, marginBottom: 10, fontFamily: "monospace" },
+    dropCard: { background: "#fff", border: "1px solid #eee", borderRadius: 14, padding: 14, marginBottom: 10, cursor: "pointer", transition: "transform 0.1s", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" },
   };
 
+  const liveDrops = allDrops.filter(d => d.active && d.expiresAt > Date.now() / 1000 && d.claimedCount < d.totalClaims);
+
+  // ─── HOME ───
   if (view === "home") return (
     <div style={s.page}>
       <div style={s.card}>
@@ -166,14 +239,56 @@ export default function Page() {
         {!isConnected ? <ConnectWallet /> : (
           <>
             <button style={{ ...s.btn, ...s.btnBlue }} onClick={() => setView("create")}>🚀 Create Drop</button>
-            <button style={{ ...s.btn, ...s.btnGray }} onClick={() => setView("claim")}>💰 Claim Drop</button>
-            <div style={{ fontSize: 11, color: "#aaa", textAlign: "center", marginTop: 8 }}>{address?.slice(0,6)}...{address?.slice(-4)}</div>
+            <button style={{ ...s.btn, ...s.btnGray }} onClick={() => setView("claim")}>💰 Claim by ID</button>
+            <div style={{ fontSize: 11, color: "#aaa", textAlign: "center", marginTop: 8 }}>{shortAddr(address!)}</div>
           </>
+        )}
+      </div>
+
+      {/* Live Drops List */}
+      <div style={{ ...s.card, marginTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#111" }}>🔴 Live Drops</div>
+          <div onClick={fetchAllDrops} style={{ fontSize: 12, color: "#0052FF", fontWeight: 600, cursor: "pointer" }}>↻ Refresh</div>
+        </div>
+        {loadingDrops ? (
+          <div style={{ textAlign: "center", padding: 20, color: "#aaa", fontSize: 13 }}>Loading drops...</div>
+        ) : liveDrops.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: "#aaa", fontSize: 13 }}>
+            No live drops right now.<br />Be the first to create one! 🚀
+          </div>
+        ) : (
+          liveDrops.map(d => {
+            const left = d.totalClaims - d.claimedCount;
+            const pct = (d.claimedCount / d.totalClaims) * 100;
+            return (
+              <div key={d.id} style={s.dropCard} onClick={() => openClaim(d.id)}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111" }}>{shortAddr(d.creator)}</div>
+                    <div style={{ fontSize: 10, color: "#aaa" }}>Drop #{d.id} · {timeLeft(d.expiresAt)}</div>
+                  </div>
+                  <div style={{ background: "#0052FF", color: "#fff", borderRadius: 10, padding: "6px 12px", fontSize: 15, fontWeight: 800 }}>
+                    ${(Number(d.amountPerClaim) / 10 ** USDC_DECIMALS).toFixed(2)}
+                  </div>
+                </div>
+                {d.message && <div style={{ fontSize: 12, color: "#888", fontStyle: "italic", marginBottom: 8 }}>"{d.message}"</div>}
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#999", marginBottom: 4 }}>
+                  <span>{d.claimedCount} claimed</span>
+                  <span>{left} left</span>
+                </div>
+                <div style={{ height: 4, background: "#eee", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: "#0052FF" }} />
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     </div>
   );
 
+  // ─── CREATE ───
   if (view === "create") return (
     <div style={s.page}>
       <div style={s.card}>
@@ -189,7 +304,7 @@ export default function Page() {
             <button style={{ ...s.btn, ...(copied ? s.btnGreen : s.btnBlue) }} onClick={handleCopy}>
               {copied ? "✅ Copied!" : "📋 Copy Link"}
             </button>
-            <button style={{ ...s.btn, ...s.btnGray }} onClick={() => { setStep("idle"); setCreatedDropId(null); }}>Create Another</button>
+            <button style={{ ...s.btn, ...s.btnGray }} onClick={() => { setStep("idle"); setCreatedDropId(null); setView("home"); }}>Back to Home</button>
           </div>
         ) : (
           <>
@@ -219,6 +334,7 @@ export default function Page() {
     </div>
   );
 
+  // ─── CLAIM ───
   if (view === "claim") return (
     <div style={s.page}>
       <div style={s.card}>
