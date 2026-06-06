@@ -304,6 +304,11 @@ export default function Page() {
             <button style={{ ...s.btn, ...(copied ? s.btnGreen : s.btnBlue) }} onClick={handleCopy}>
               {copied ? "✅ Copied!" : "📋 Copy Link"}
             </button>
+            <button style={{ ...s.btn, background: "#7C3AED", color: "#fff" }} onClick={() => {
+              const text = encodeURIComponent("I just created a USDC drop on Basedrop! Claim yours");
+              const url = encodeURIComponent(shareLink);
+              window.open("https://warpcast.com/~/compose?text=" + text + "&embeds[]=" + url, "_blank");
+            }}>Share on Warpcast</button>
             <button style={{ ...s.btn, ...s.btnGray }} onClick={() => { setStep("idle"); setCreatedDropId(null); setView("home"); }}>Back to Home</button>
           </div>
         ) : (
