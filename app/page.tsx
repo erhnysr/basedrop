@@ -9,6 +9,9 @@ import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURA
 
 const rpc = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
 
+// Base Builder Code attribution suffix (bc_dn3rl547), appended to tx calldata
+const BUILDER_CODE: `0x${string}` = "0x62635f646e33726c353437";
+
 type View = "home" | "create" | "claim" | "explore";
 
 interface DropInfo {
@@ -104,7 +107,7 @@ export default function Page() {
       const amtUnits = BigInt(Math.round(parseFloat(amt) * 10 ** USDC_DECIMALS));
       const totalAmt = amtUnits * BigInt(claims);
       setStep("approving");
-      await writeContractAsync({ address: USDC_ADDRESS, abi: USDC_ABI, functionName: "approve", args: [ESCROW_ADDRESS as `0x${string}`, totalAmt] });
+      await writeContractAsync({ address: USDC_ADDRESS, abi: USDC_ABI, functionName: "approve", args: [ESCROW_ADDRESS as `0x${string}`, totalAmt], dataSuffix: BUILDER_CODE });
       for (let i = 0; i < 30; i++) {
         const a = await rpc.readContract({ address: USDC_ADDRESS as `0x${string}`, abi: USDC_ABI, functionName: "allowance", args: [address, ESCROW_ADDRESS as `0x${string}`] });
         if ((a as bigint) >= totalAmt) break;
@@ -112,7 +115,7 @@ export default function Page() {
       }
       setStep("creating");
       const prevId = await rpc.readContract({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "nextDropId" }) as bigint;
-      await writeContractAsync({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "createDrop", args: [amtUnits, BigInt(claims), BigInt(DURATIONS[dur]), msg] });
+      await writeContractAsync({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "createDrop", args: [amtUnits, BigInt(claims), BigInt(DURATIONS[dur]), msg], dataSuffix: BUILDER_CODE });
       for (let i = 0; i < 30; i++) {
         const nId = await rpc.readContract({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "nextDropId" }) as bigint;
         if (nId > prevId) { setCreatedDropId(String(Number(prevId))); setStep("done"); fetchAllDrops(); return; }
@@ -126,7 +129,7 @@ export default function Page() {
     if (!claimDropId) return;
     try {
       setClaimStep("claiming");
-      const tx = await writeContractAsync({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "claim", args: [BigInt(parseInt(claimDropId) || 0)] });
+      const tx = await writeContractAsync({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "claim", args: [BigInt(parseInt(claimDropId) || 0)], dataSuffix: BUILDER_CODE });
       await rpc.waitForTransactionReceipt({ hash: tx });
       setClaimStep("done"); fetchAllDrops();
     } catch (e) { console.error(e); setClaimStep("idle"); }
