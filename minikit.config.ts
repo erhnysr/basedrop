@@ -3,6 +3,8 @@ const ROOT_URL =
   (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
   "http://localhost:3000";
 
+const PRODUCTION_URL = "https://basedrop-chi.vercel.app";
+
 export const minikitConfig = {
   accountAssociation: {
     header: "eyJmaWQiOjMzMzM2NjAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhkNzZEMDlhOTYxRmVmZEE1MkNlMTc3RTFDNDU1MTU4MGJEQjkzQTVFIn0",
@@ -18,17 +20,17 @@ export const minikitConfig = {
     subtitle: "Drop USDC to your community",
     description: "Basedrop lets creators drop USDC to their community instantly. Create a drop, share it, and watch your community claim — all onchain on Base with zero platform fees.",
     screenshotUrls: [],
-    iconUrl: `${ROOT_URL}/icon.png`,
+    iconUrl: `${PRODUCTION_URL}/icon.png`,
     splashImageUrl: `${ROOT_URL}/splash.png`,
     splashBackgroundColor: "#FAFAFA",
     homeUrl: ROOT_URL,
     webhookUrl: `${ROOT_URL}/api/webhook`,
     primaryCategory: "utility",
     tags: ["usdc", "tipping", "creator", "base", "onchain"],
-    heroImageUrl: `${ROOT_URL}/hero.png`,
+    heroImageUrl: `${PRODUCTION_URL}/hero.png`,
     tagline: "Drop USDC to your community",
     ogTitle: "Basedrop - Drop USDC",
     ogDescription: "Create drops, share with your community, claim USDC instantly. Zero fees. Fully onchain on Base.",
-    ogImageUrl: `${ROOT_URL}/hero.png`,
+    ogImageUrl: `${PRODUCTION_URL}/hero.png`,
   },
 } as const;
