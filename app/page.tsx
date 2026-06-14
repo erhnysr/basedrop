@@ -25,6 +25,13 @@ interface DropInfo {
   active: boolean;
 }
 
+interface LeaderboardEntry {
+  address: string;
+  total: number;
+}
+
+const RANK_EMOJI = ["🥇", "🥈", "🥉"];
+
 const COLORS = ["#EEF2FF", "#F5F3FF", "#ECFDF5", "#FEF3C7", "#FEE2E2", "#F0F9FF"];
 const EMOJIS = ["🔵", "⚡", "🎨", "💎", "🚀", "🌊", "✨", "🎯", "💧", "🔥"];
 
@@ -55,6 +62,8 @@ export default function Page() {
   const [dropInfo, setDropInfo] = useState<any>(null);
   const [allDrops, setAllDrops] = useState<DropInfo[]>([]);
   const [loadingDrops, setLoadingDrops] = useState(true);
+  const [topCreators, setTopCreators] = useState<LeaderboardEntry[]>([]);
+  const [topClaimers, setTopClaimers] = useState<LeaderboardEntry[]>([]);
   const [, setTick] = useState(0);
 
   const amountRef = useRef(amountPerClaim);
@@ -92,6 +101,17 @@ export default function Page() {
   }, []);
 
   useEffect(() => { fetchAllDrops(); }, [fetchAllDrops]);
+
+  const fetchLeaderboard = useCallback(async () => {
+    try {
+      const res = await fetch("/api/leaderboard");
+      const data = await res.json();
+      setTopCreators((data.creators || []).map((c: any) => ({ address: c.creator_address, total: Number(c.total_dropped) || 0 })));
+      setTopClaimers((data.claimers || []).map((c: any) => ({ address: c.claimer_address, total: Number(c.total_claimed) || 0 })));
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchLeaderboard(); }, [fetchLeaderboard]);
 
   useEffect(() => {
     if (!claimDropId || isNaN(Number(claimDropId))) return;
@@ -343,6 +363,22 @@ export default function Page() {
     );
   }
 
+  const LeaderboardList = ({ title, icon, entries }: { title: string; icon: string; entries: LeaderboardEntry[] }) => (
+    <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #F0F0F0", padding: 14, marginBottom: 10, flex: 1 }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: "#111", marginBottom: 8 }}>{icon} {title}</div>
+      {entries.length === 0 ? <div style={{ fontSize: 11, color: "#bbb", padding: "8px 0" }}>No data yet</div> :
+        entries.map((e, i) => (
+          <div key={e.address} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: i < entries.length - 1 ? "0.5px solid #F5F5F5" : "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 18, textAlign: "center", fontSize: i < 3 ? 14 : 10, fontWeight: 700, color: i < 3 ? "#111" : "#ccc" }}>{i < 3 ? RANK_EMOJI[i] : `#${i + 1}`}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#111" }}>{shortAddr(e.address)}</div>
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#111" }}>${e.total.toFixed(2)}</div>
+          </div>
+        ))}
+    </div>
+  );
+
   // ─── EXPLORE ───
   if (view === "explore") return (
     <div style={S}>
@@ -351,6 +387,10 @@ export default function Page() {
         <div onClick={fetchAllDrops} style={{ fontSize: 11, color: "#6366F1", fontWeight: 600, cursor: "pointer" }}>↻ Refresh</div>
       </div>
       <div style={{ padding: "14px 18px 100px" }}>
+        <div style={{ display: "flex", gap: 10 }}>
+          <LeaderboardList title="Top Creators" icon="🏆" entries={topCreators} />
+          <LeaderboardList title="Top Claimers" icon="💎" entries={topClaimers} />
+        </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: "#111" }}>All drops</div>
           <div style={{ fontSize: 11, color: "#6366F1", fontWeight: 600 }}>{liveDrops.length} live</div>
