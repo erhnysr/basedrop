@@ -118,7 +118,22 @@ export default function Page() {
       await writeContractAsync({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "createDrop", args: [amtUnits, BigInt(claims), BigInt(DURATIONS[dur]), msg], dataSuffix: BUILDER_CODE });
       for (let i = 0; i < 30; i++) {
         const nId = await rpc.readContract({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "nextDropId" }) as bigint;
-        if (nId > prevId) { setCreatedDropId(String(Number(prevId))); setStep("done"); fetchAllDrops(); return; }
+        if (nId > prevId) {
+          setCreatedDropId(String(Number(prevId))); setStep("done"); fetchAllDrops();
+          fetch("/api/drops", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              creator_address: address,
+              amount_per_claim: amt,
+              total_claims: claims,
+              expires_at: new Date(Date.now() + DURATIONS[dur] * 1000).toISOString(),
+              message: msg,
+              tx_hash: "onchain",
+            }),
+          }).catch(() => {});
+          return;
+        }
         await new Promise(r => setTimeout(r, 2000));
       }
       setStep("done"); setCreatedDropId("0");
@@ -132,6 +147,15 @@ export default function Page() {
       const tx = await writeContractAsync({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "claim", args: [BigInt(parseInt(claimDropId) || 0)], dataSuffix: BUILDER_CODE });
       await rpc.waitForTransactionReceipt({ hash: tx });
       setClaimStep("done"); fetchAllDrops();
+      fetch("/api/claims", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          drop_id: claimDropId,
+          claimer_address: address,
+          tx_hash: "onchain",
+        }),
+      }).catch(() => {});
     } catch (e) { console.error(e); setClaimStep("idle"); }
   };
 
