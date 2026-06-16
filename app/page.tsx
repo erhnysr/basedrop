@@ -9,7 +9,6 @@ import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURA
 
 const rpc = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
 
-// Base Builder Code attribution suffix (bc_dn3rl547), appended to tx calldata
 const BUILDER_CODE: `0x${string}` = "0x62635f646e33726c353437";
 
 type View = "home" | "create" | "claim" | "explore";
@@ -31,7 +30,6 @@ interface LeaderboardEntry {
 }
 
 const RANK_EMOJI = ["🥇", "🥈", "🥉"];
-
 const COLORS = ["#EEF2FF", "#F5F3FF", "#ECFDF5", "#FEF3C7", "#FEE2E2", "#F0F9FF"];
 const EMOJIS = ["🔵", "⚡", "🎨", "💎", "🚀", "🌊", "✨", "🎯", "💧", "🔥"];
 
@@ -66,6 +64,13 @@ export default function Page() {
   const [topClaimers, setTopClaimers] = useState<LeaderboardEntry[]>([]);
   const [, setTick] = useState(0);
 
+  // ─── Referral state ───
+  const [referrerAddress, setReferrerAddress] = useState("");
+  const [referralPoints, setReferralPoints] = useState(0);
+  const [refCopied, setRefCopied] = useState(false);
+
+  const BASE_URL = process.env.NEXT_PUBLIC_URL || "https://basedrop-chi.vercel.app";
+
   const amountRef = useRef(amountPerClaim);
   const claimsRef = useRef(totalClaims);
   const durationRef = useRef(duration);
@@ -78,11 +83,23 @@ export default function Page() {
   useEffect(() => { if (!isFrameReady) setFrameReady(); }, [setFrameReady, isFrameReady]);
   useEffect(() => { const t = setInterval(() => setTick(v => v + 1), 30000); return () => clearInterval(t); }, []);
 
+  // Parse ?claim= and ?ref= from URL
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const id = p.get("claim");
+    const ref = p.get("ref");
     if (id) { setClaimDropId(id); setView("claim"); }
+    if (ref) { setReferrerAddress(ref); }
   }, []);
+
+  // Fetch referral points for connected wallet
+  useEffect(() => {
+    if (!address) { setReferralPoints(0); return; }
+    fetch(`/api/referrals?address=${address}`)
+      .then(r => r.json())
+      .then(d => setReferralPoints(Number(d.total_points) || 0))
+      .catch(() => {});
+  }, [address]);
 
   const fetchAllDrops = useCallback(async () => {
     try {
@@ -167,19 +184,30 @@ export default function Page() {
       const tx = await writeContractAsync({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "claim", args: [BigInt(parseInt(claimDropId) || 0)], dataSuffix: BUILDER_CODE });
       await rpc.waitForTransactionReceipt({ hash: tx });
       setClaimStep("done"); fetchAllDrops();
+
+      // Record claim in Supabase
       fetch("/api/claims", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          drop_id: claimDropId,
-          claimer_address: address,
-          tx_hash: "onchain",
-        }),
+        body: JSON.stringify({ drop_id: claimDropId, claimer_address: address, tx_hash: "onchain" }),
       }).catch(() => {});
+
+      // Record referral if link came from a referrer
+      if (referrerAddress && address && referrerAddress.toLowerCase() !== address.toLowerCase()) {
+        fetch("/api/referrals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            referrer_address: referrerAddress,
+            referee_address: address,
+            drop_id: parseInt(claimDropId) || 0,
+          }),
+        }).catch(() => {});
+      }
     } catch (e) { console.error(e); setClaimStep("idle"); }
   };
 
-  const shareLink = createdDropId !== null ? `${process.env.NEXT_PUBLIC_URL || "https://basedrop-chi.vercel.app"}?claim=${createdDropId}` : "";
+  const shareLink = createdDropId !== null ? `${BASE_URL}?claim=${createdDropId}` : "";
   const handleCopy = () => { navigator.clipboard.writeText(shareLink); setCopied(true); setTimeout(() => setCopied(false), 2000); };
   const openClaim = (id: number) => { setClaimDropId(String(id)); setClaimStep("idle"); setDropInfo(null); setView("claim"); };
 
@@ -247,24 +275,61 @@ export default function Page() {
   );
 
   // ─── SUCCESS (CLAIM) ───
-  if (view === "claim" && claimStep === "done" && dropInfo) return (
-    <div style={{ ...S, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
-      <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
-      <div style={{ fontSize: 26, fontWeight: 800, color: "#111", letterSpacing: -0.8, marginBottom: 4 }}>You claimed it!</div>
-      <div style={{ fontSize: 12, color: "#bbb", marginBottom: 24 }}>USDC sent to your wallet</div>
-      <div style={{ fontSize: 60, fontWeight: 800, color: "#111", letterSpacing: -2, marginBottom: 4 }}>+{formatUSDC(dropInfo[1])}</div>
-      <div style={{ fontSize: 12, color: "#bbb", marginBottom: 28 }}>USDC · Base Mainnet</div>
-      <div style={{ background: "#fff", border: "1px solid #F0F0F0", borderRadius: 20, padding: 16, width: "100%", marginBottom: 20 }}>
-        {([["From", shortAddr(String(dropInfo[0]))], ["Amount", `${formatUSDC(dropInfo[1])} USDC`], ["Network", "Base"], ["Fee", "$0.00 🎉"], ["Status", "✓ Confirmed"]] as const).map(([l, v]) => (
-          <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "0.5px solid #F5F5F5" }}>
-            <span style={{ fontSize: 11, color: "#bbb" }}>{l}</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: l === "Fee" || l === "Status" ? "#10B981" : "#111" }}>{v}</span>
+  if (view === "claim" && claimStep === "done" && dropInfo) {
+    const myRefLink = `${BASE_URL}?claim=${claimDropId}&ref=${address}`;
+    const shareRefText = encodeURIComponent(`I just claimed ${formatUSDC(dropInfo[1])} USDC on Basedrop!\n\nClaim yours too 👇`);
+    const shareRefUrl = encodeURIComponent(myRefLink);
+
+    return (
+      <div style={{ ...S, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
+        <div style={{ fontSize: 26, fontWeight: 800, color: "#111", letterSpacing: -0.8, marginBottom: 4 }}>You claimed it!</div>
+        <div style={{ fontSize: 12, color: "#bbb", marginBottom: 24 }}>USDC sent to your wallet</div>
+        <div style={{ fontSize: 60, fontWeight: 800, color: "#111", letterSpacing: -2, marginBottom: 4 }}>+{formatUSDC(dropInfo[1])}</div>
+        <div style={{ fontSize: 12, color: "#bbb", marginBottom: 28 }}>USDC · Base Mainnet</div>
+
+        <div style={{ background: "#fff", border: "1px solid #F0F0F0", borderRadius: 20, padding: 16, width: "100%", marginBottom: 20 }}>
+          {([["From", shortAddr(String(dropInfo[0]))], ["Amount", `${formatUSDC(dropInfo[1])} USDC`], ["Network", "Base"], ["Fee", "$0.00 🎉"], ["Status", "✓ Confirmed"]] as const).map(([l, v]) => (
+            <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "0.5px solid #F5F5F5" }}>
+              <span style={{ fontSize: 11, color: "#bbb" }}>{l}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: l === "Fee" || l === "Status" ? "#10B981" : "#111" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* ─── Share & Earn ─── */}
+        <div style={{ background: "linear-gradient(135deg, #F8F7FF, #F0FDF4)", border: "1.5px solid #EBEBFF", borderRadius: 20, padding: "18px 16px", width: "100%", marginBottom: 16, textAlign: "left" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <div style={{ fontSize: 20 }}>🔗</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#111" }}>Share & Earn</div>
+            <div style={{ background: "#10B981", color: "#fff", fontSize: 9, fontWeight: 700, borderRadius: 6, padding: "2px 6px", letterSpacing: 0.4 }}>+1 PT / REFERRAL</div>
           </div>
-        ))}
+          <div style={{ fontSize: 11, color: "#666", lineHeight: 1.6, marginBottom: 12 }}>
+            Share your referral link. Every friend who claims earns you a point on the leaderboard.
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.8)", border: "1px solid #E5E7EB", borderRadius: 10, padding: "8px 10px", fontSize: 10, color: "#555", fontFamily: "monospace", wordBreak: "break-all", marginBottom: 10 }}>
+            {myRefLink}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => { navigator.clipboard.writeText(myRefLink); setRefCopied(true); setTimeout(() => setRefCopied(false), 2000); }}
+              style={{ flex: 1, background: refCopied ? "#10B981" : "#111", color: "#fff", border: "none", borderRadius: 12, padding: "10px 8px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+            >
+              {refCopied ? "✅ Copied!" : "📋 Copy link"}
+            </button>
+            <button
+              onClick={() => window.open(`https://warpcast.com/~/compose?text=${shareRefText}&embeds[]=${shareRefUrl}`, "_blank")}
+              style={{ flex: 1, background: "#7C3AED", color: "#fff", border: "none", borderRadius: 12, padding: "10px 8px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+            >
+              🟣 Warpcast
+            </button>
+          </div>
+        </div>
+
+        <button onClick={() => { setClaimStep("idle"); setView("home"); }} style={{ width: "100%", background: "#F0F0F0", color: "#333", border: "none", borderRadius: 16, padding: 14, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Back to drops</button>
       </div>
-      <button onClick={() => { setClaimStep("idle"); setView("home"); }} style={{ width: "100%", background: "#111", color: "#fff", border: "none", borderRadius: 16, padding: 14, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Back to drops</button>
-    </div>
-  );
+    );
+  }
 
   // ─── CREATE ───
   if (view === "create") {
@@ -332,6 +397,13 @@ export default function Page() {
           </>) : <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, position: "relative" }}>Enter a Drop ID below</div>}
         </div>
         <div style={{ padding: "14px 18px 100px" }}>
+          {/* Show referrer attribution */}
+          {referrerAddress && (
+            <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "8px 12px", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 13 }}>🔗</span>
+              <span style={{ fontSize: 11, color: "#166534" }}>Referred by <strong>{shortAddr(referrerAddress)}</strong></span>
+            </div>
+          )}
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 9, fontWeight: 700, color: "#bbb", letterSpacing: 0.6, marginBottom: 5, textTransform: "uppercase" }}>Drop ID</div>
             <input value={claimDropId} onChange={e => { setClaimDropId(e.target.value); setClaimStep("idle"); }} placeholder="e.g. 0" style={{ width: "100%", background: "#fff", border: "1.5px solid #F0F0F0", borderRadius: 12, padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "#111", outline: "none", boxSizing: "border-box" }} />
@@ -415,6 +487,11 @@ export default function Page() {
         </div>
         {isConnected ? (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {referralPoints > 0 && (
+              <div style={{ fontSize: 10, color: "#10B981", fontWeight: 700, background: "#ECFDF5", border: "1px solid #BBF7D0", padding: "4px 8px", borderRadius: 8 }}>
+                🔗 {referralPoints} pts
+              </div>
+            )}
             <div style={{ fontSize: 10, color: "#6366F1", fontWeight: 700, background: "#F8F7FF", padding: "4px 8px", borderRadius: 8 }}>{shortAddr(address!)}</div>
           </div>
         ) : <ConnectWallet />}
