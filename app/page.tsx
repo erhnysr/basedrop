@@ -371,7 +371,12 @@ export default function Page() {
           <button onClick={handleCreate} disabled={!isConnected || step !== "idle" || total <= 0} style={{ width: "100%", background: step === "idle" ? "#111" : "#6366F1", color: "#fff", border: "none", borderRadius: 16, padding: 14, fontSize: 14, fontWeight: 800, cursor: step === "idle" && isConnected ? "pointer" : "not-allowed", opacity: !isConnected || total <= 0 ? 0.5 : 1, marginBottom: 8 }}>
             {step === "idle" && "Launch drop 🚀"}{step === "approving" && "Approving USDC..."}{step === "creating" && "Creating drop..."}
           </button>
-          <div style={{ textAlign: "center", fontSize: 10, color: "#ccc" }}>Zero platform fees · Powered by Base</div>
+          <div style={{ textAlign: "center", fontSize: 10, color: "#ccc", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <span>Zero platform fees · Powered by Base</span>
+            {process.env.NEXT_PUBLIC_X402_ENABLED === "true" && (
+              <span style={{ background: "#0052FF", color: "#fff", fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 4, letterSpacing: 0.4 }}>x402 enabled</span>
+            )}
+          </div>
         </div>
         <BottomNav />
       </div>
