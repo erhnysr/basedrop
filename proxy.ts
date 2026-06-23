@@ -3,7 +3,9 @@ import { HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 
 const PAY_TO = "0xD3467E00F6d7275C74e60fc7A1E5eD526893B29F";
-const NETWORK = "eip155:8453"; // Base Mainnet
+// x402.org public facilitator supports Base Sepolia (eip155:84532).
+// Base Mainnet (eip155:8453) requires a self-hosted facilitator.
+const NETWORK = "eip155:84532";
 
 const facilitatorClient = new HTTPFacilitatorClient({
   url: "https://x402.org/facilitator",
@@ -14,26 +16,11 @@ const resourceServer = new x402ResourceServer(facilitatorClient).register(
   new ExactEvmScheme()
 );
 
+// Only protect /api/analytics — /api/drops and /api/leaderboard are
+// called by the UI directly (no payment header), so protecting them
+// would silently break the leaderboard and drop-logging features.
 export const proxy = paymentProxy(
   {
-    "/api/drops": {
-      accepts: {
-        scheme: "exact",
-        price: "$0.001",
-        network: NETWORK,
-        payTo: PAY_TO,
-      },
-      description: "Access to live USDC drops feed",
-    },
-    "/api/leaderboard": {
-      accepts: {
-        scheme: "exact",
-        price: "$0.002",
-        network: NETWORK,
-        payTo: PAY_TO,
-      },
-      description: "Access to Basedrop leaderboard",
-    },
     "/api/analytics": {
       accepts: {
         scheme: "exact",
@@ -48,5 +35,5 @@ export const proxy = paymentProxy(
 );
 
 export const config = {
-  matcher: ["/api/drops", "/api/leaderboard", "/api/analytics"],
+  matcher: ["/api/analytics"],
 };
