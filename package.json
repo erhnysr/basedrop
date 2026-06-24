@@ -14,6 +14,7 @@
     "@supabase/supabase-js": "^2.108.1",
     "@tanstack/react-query": "^5.81.5",
     "@x402/evm": "^2.16.0",
+    "@x402/fetch": "^2.16.0",
     "@x402/next": "^2.16.0",
     "next": "^16.2.6",
     "react": "^19.0.0",
