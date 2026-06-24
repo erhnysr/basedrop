@@ -376,6 +376,7 @@ export default function Page() {
             {process.env.NEXT_PUBLIC_X402_ENABLED === "true" && (
               <span style={{ background: "#0052FF", color: "#fff", fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 4, letterSpacing: 0.4 }}>x402 enabled</span>
             )}
+            <span style={{ background: "#7C3AED", color: "#fff", fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 4, letterSpacing: 0.4 }}>MCP enabled</span>
           </div>
         </div>
         <BottomNav />
