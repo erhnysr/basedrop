@@ -99,3 +99,4 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 To learn more about OnchainKit, see our [documentation](https://docs.base.org/onchainkit).
 
 To learn more about Next.js, see the [Next.js documentation](https://nextjs.org/docs).
+
