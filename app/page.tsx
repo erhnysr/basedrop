@@ -215,14 +215,14 @@ export default function Page() {
   const totalDropped = allDrops.reduce((s, d) => s + Number(d.amountPerClaim) * d.claimedCount / 10 ** USDC_DECIMALS, 0);
   const totalClaimed = allDrops.reduce((s, d) => s + d.claimedCount, 0);
 
-  const S: React.CSSProperties = { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif", background: "#FAFAFA", minHeight: "100vh", maxWidth: 430, margin: "0 auto", position: "relative", overflowX: "hidden" };
+  const S: React.CSSProperties = { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif", background: "#FAFAFA", minHeight: "100vh", width: "100%", maxWidth: 430, margin: "0 auto", position: "relative", overflowX: "hidden" };
 
   const BottomNav = () => (
     <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "#fff", borderTop: "1px solid #F0F0F0", display: "flex", padding: "10px 8px 28px", zIndex: 100 }}>
       {([["🏠","home","Home"],["🔍","explore","Explore"],["💧","create","Drop"],["👤","home","Profile"]] as const).map(([icon, sc, label]) => (
         <div key={label} onClick={() => setView(sc as View)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer" }}>
-          <div style={{ width: 28, height: 28, borderRadius: 9, background: view === sc ? "#111" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>{icon}</div>
-          <div style={{ fontSize: 9, fontWeight: 600, color: view === sc ? "#111" : "#ccc", letterSpacing: 0.2 }}>{label}</div>
+          <div style={{ width: 28, height: 28, borderRadius: 9, background: view === sc ? "#F0F0F0" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>{icon}</div>
+          <div style={{ fontSize: 9, fontWeight: 600, color: view === sc ? "#111" : "#999", letterSpacing: 0.2 }}>{label}</div>
         </div>
       ))}
     </div>
@@ -343,7 +343,7 @@ export default function Page() {
           <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", position: "relative" }}>Send USDC to your community</div>
         </div>
         <div style={{ padding: "16px 18px 100px" }}>
-          {!isConnected && <div style={{ background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: 14, padding: 14, marginBottom: 14, fontSize: 12, color: "#92400E", fontWeight: 600, textAlign: "center" }}><ConnectWallet /></div>}
+          {!isConnected && <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}><ConnectWallet /></div>}
           <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
             {([["Amount each ($)", amountPerClaim, setAmountPerClaim, "0.01"], ["Recipients", totalClaims, setTotalClaims, "1"]] as const).map(([l, v, fn, min]) => (
               <div key={l} style={{ flex: 1 }}>
