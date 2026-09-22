@@ -2,6 +2,31 @@
 export const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
 export const USDC_DECIMALS = 6;
 
+export interface DropInfo {
+  id: number;
+  creator: string;
+  amountPerClaim: bigint;
+  totalClaims: number;
+  claimedCount: number;
+  expiresAt: number;
+  message: string;
+  active: boolean;
+}
+
+// Maps the raw `getDropInfo` tuple returned by the escrow contract into a typed DropInfo.
+export function parseDropInfo(id: number, info: readonly unknown[]): DropInfo {
+  return {
+    id,
+    creator: info[0] as string,
+    amountPerClaim: info[1] as bigint,
+    totalClaims: Number(info[2]),
+    claimedCount: Number(info[3]),
+    expiresAt: Number(info[4]),
+    message: info[5] as string,
+    active: info[6] as boolean,
+  };
+}
+
 // TODO: Deploy contract and paste address here
 export const ESCROW_ADDRESS = "0x6077F3f9c3d8D68eD5cE95998B36F24Aaff4AcfE" as const;
 

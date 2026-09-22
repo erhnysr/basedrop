@@ -5,43 +5,16 @@ import { useAccount, useWriteContract } from "wagmi";
 import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
-import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURATIONS } from "../lib/contract";
+import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURATIONS, DropInfo, parseDropInfo } from "../lib/contract";
+import { View, LeaderboardEntry } from "../lib/types";
+import { shortAddr, formatUSDC, timeLeft, EMOJIS } from "../lib/format";
+import { BottomNav } from "./components/BottomNav";
+import { DropCard } from "./components/DropCard";
+import { LeaderboardList } from "./components/LeaderboardList";
 
 const rpc = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
 
 const BUILDER_CODE: `0x${string}` = "0x62635f646e33726c353437";
-
-type View = "home" | "create" | "claim" | "explore";
-
-interface DropInfo {
-  id: number;
-  creator: string;
-  amountPerClaim: bigint;
-  totalClaims: number;
-  claimedCount: number;
-  expiresAt: number;
-  message: string;
-  active: boolean;
-}
-
-interface LeaderboardEntry {
-  address: string;
-  total: number;
-}
-
-const RANK_EMOJI = ["🥇", "🥈", "🥉"];
-const COLORS = ["#EEF2FF", "#F5F3FF", "#ECFDF5", "#FEF3C7", "#FEE2E2", "#F0F9FF"];
-const EMOJIS = ["🔵", "⚡", "🎨", "💎", "🚀", "🌊", "✨", "🎯", "💧", "🔥"];
-
-function shortAddr(a: string) { return a ? `${a.slice(0, 6)}...${a.slice(-4)}` : ""; }
-function formatUSDC(a: bigint) { return `$${(Number(a) / 10 ** USDC_DECIMALS).toFixed(2)}`; }
-function timeLeft(exp: number) {
-  const d = exp - Math.floor(Date.now() / 1000);
-  if (d <= 0) return "Expired";
-  const h = Math.floor(d / 3600), m = Math.floor((d % 3600) / 60);
-  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
-  return `${h}h ${m}m`;
-}
 
 export default function Page() {
   const { setFrameReady, isFrameReady } = useMiniKit();
@@ -57,7 +30,7 @@ export default function Page() {
   const [copied, setCopied] = useState(false);
   const [claimDropId, setClaimDropId] = useState("");
   const [claimStep, setClaimStep] = useState<"idle" | "claiming" | "done">("idle");
-  const [dropInfo, setDropInfo] = useState<any>(null);
+  const [dropInfo, setDropInfo] = useState<DropInfo | null>(null);
   const [allDrops, setAllDrops] = useState<DropInfo[]>([]);
   const [loadingDrops, setLoadingDrops] = useState(true);
   const [topCreators, setTopCreators] = useState<LeaderboardEntry[]>([]);
@@ -108,8 +81,8 @@ export default function Page() {
       const drops: DropInfo[] = [];
       for (let i = count - 1; i >= 0 && i >= count - 20; i--) {
         try {
-          const info = await rpc.readContract({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "getDropInfo", args: [BigInt(i)] }) as any;
-          drops.push({ id: i, creator: info[0], amountPerClaim: info[1], totalClaims: Number(info[2]), claimedCount: Number(info[3]), expiresAt: Number(info[4]), message: info[5], active: info[6] });
+          const info = await rpc.readContract({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "getDropInfo", args: [BigInt(i)] }) as readonly unknown[];
+          drops.push(parseDropInfo(i, info));
         } catch {}
       }
       setAllDrops(drops);
@@ -132,7 +105,8 @@ export default function Page() {
 
   useEffect(() => {
     if (!claimDropId || isNaN(Number(claimDropId))) return;
-    rpc.readContract({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "getDropInfo", args: [BigInt(parseInt(claimDropId) || 0)] }).then(setDropInfo).catch(() => {});
+    const id = parseInt(claimDropId) || 0;
+    rpc.readContract({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "getDropInfo", args: [BigInt(id)] }).then(info => setDropInfo(parseDropInfo(id, info as readonly unknown[]))).catch(() => {});
   }, [claimDropId]);
 
   const { writeContractAsync } = useWriteContract();
@@ -217,50 +191,6 @@ export default function Page() {
 
   const S: React.CSSProperties = { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif", background: "#FAFAFA", minHeight: "100vh", width: "100%", maxWidth: 430, margin: "0 auto", position: "relative", overflowX: "hidden" };
 
-  const BottomNav = () => (
-    <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "#fff", borderTop: "1px solid #F0F0F0", display: "flex", padding: "10px 8px 28px", zIndex: 100 }}>
-      {([["🏠","home","Home"],["🔍","explore","Explore"],["💧","create","Drop"],["👤","home","Profile"]] as const).map(([icon, sc, label]) => (
-        <div key={label} onClick={() => setView(sc as View)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer" }}>
-          <div style={{ width: 28, height: 28, borderRadius: 9, background: view === sc ? "#F0F0F0" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>{icon}</div>
-          <div style={{ fontSize: 9, fontWeight: 600, color: view === sc ? "#111" : "#999", letterSpacing: 0.2 }}>{label}</div>
-        </div>
-      ))}
-    </div>
-  );
-
-  const DropCard = ({ d }: { d: DropInfo }) => {
-    const left = d.totalClaims - d.claimedCount;
-    const isLive = d.active && d.expiresAt > Date.now() / 1000 && left > 0;
-    return (
-      <div onClick={() => openClaim(d.id)} style={{ background: "#fff", borderRadius: 20, padding: 16, marginBottom: 10, border: "1px solid #F0F0F0", boxShadow: "0 2px 16px rgba(0,0,0,0.04)", cursor: "pointer" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
-          {isLive ? (<><div style={{ width: 6, height: 6, background: "#EF4444", borderRadius: "50%", animation: "pulse 1.5s infinite" }} /><span style={{ fontSize: 9, fontWeight: 700, color: "#EF4444" }}>LIVE</span><span style={{ fontSize: 9, color: "#ccc" }}> · {left} left · {timeLeft(d.expiresAt)}</span></>) : (<span style={{ fontSize: 9, fontWeight: 700, color: "#aaa" }}>ENDED</span>)}
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", background: COLORS[d.id % COLORS.length], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{EMOJIS[d.id % EMOJIS.length]}</div>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#111" }}>{shortAddr(d.creator)}</div>
-              <div style={{ fontSize: 9, color: "#ccc" }}>Drop #{d.id}</div>
-            </div>
-          </div>
-          <div style={{ background: "#111", borderRadius: 10, padding: "6px 10px", textAlign: "right" }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>{formatUSDC(d.amountPerClaim)}</div>
-            <div style={{ fontSize: 7, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>USDC</div>
-          </div>
-        </div>
-        {d.message && <div style={{ fontSize: 11, color: "#888", lineHeight: 1.6, marginBottom: 10, fontStyle: "italic" }}>"{d.message}"</div>}
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#111" }}>{d.claimedCount} claimed</span>
-          <span style={{ fontSize: 10, color: "#ddd" }}>of {d.totalClaims}</span>
-        </div>
-        <div style={{ height: 3, background: "#F0F0F0", borderRadius: 3, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${(d.claimedCount / d.totalClaims) * 100}%`, background: "#6366F1", borderRadius: 3 }} />
-        </div>
-      </div>
-    );
-  };
-
   // ─── SUCCESS (CREATE) ───
   if (view === "create" && step === "done" && createdDropId !== null) return (
     <div style={{ ...S, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
@@ -277,7 +207,7 @@ export default function Page() {
   // ─── SUCCESS (CLAIM) ───
   if (view === "claim" && claimStep === "done" && dropInfo) {
     const myRefLink = `${BASE_URL}?claim=${claimDropId}&ref=${address}`;
-    const shareRefText = encodeURIComponent(`I just claimed ${formatUSDC(dropInfo[1])} USDC on Basedrop!\n\nClaim yours too 👇`);
+    const shareRefText = encodeURIComponent(`I just claimed ${formatUSDC(dropInfo.amountPerClaim)} USDC on Basedrop!\n\nClaim yours too 👇`);
     const shareRefUrl = encodeURIComponent(myRefLink);
 
     return (
@@ -285,11 +215,11 @@ export default function Page() {
         <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
         <div style={{ fontSize: 26, fontWeight: 800, color: "#111", letterSpacing: -0.8, marginBottom: 4 }}>You claimed it!</div>
         <div style={{ fontSize: 12, color: "#bbb", marginBottom: 24 }}>USDC sent to your wallet</div>
-        <div style={{ fontSize: 60, fontWeight: 800, color: "#111", letterSpacing: -2, marginBottom: 4 }}>+{formatUSDC(dropInfo[1])}</div>
+        <div style={{ fontSize: 60, fontWeight: 800, color: "#111", letterSpacing: -2, marginBottom: 4 }}>+{formatUSDC(dropInfo.amountPerClaim)}</div>
         <div style={{ fontSize: 12, color: "#bbb", marginBottom: 28 }}>USDC · Base Mainnet</div>
 
         <div style={{ background: "#fff", border: "1px solid #F0F0F0", borderRadius: 20, padding: 16, width: "100%", marginBottom: 20 }}>
-          {([["From", shortAddr(String(dropInfo[0]))], ["Amount", `${formatUSDC(dropInfo[1])} USDC`], ["Network", "Base"], ["Fee", "$0.00 🎉"], ["Status", "✓ Confirmed"]] as const).map(([l, v]) => (
+          {([["From", shortAddr(dropInfo.creator)], ["Amount", `${formatUSDC(dropInfo.amountPerClaim)} USDC`], ["Network", "Base"], ["Fee", "$0.00 🎉"], ["Status", "✓ Confirmed"]] as const).map(([l, v]) => (
             <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "0.5px solid #F5F5F5" }}>
               <span style={{ fontSize: 11, color: "#bbb" }}>{l}</span>
               <span style={{ fontSize: 11, fontWeight: 700, color: l === "Fee" || l === "Status" ? "#10B981" : "#111" }}>{v}</span>
@@ -379,7 +309,7 @@ export default function Page() {
             <span style={{ background: "#7C3AED", color: "#fff", fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 4, letterSpacing: 0.4 }}>MCP enabled</span>
           </div>
         </div>
-        <BottomNav />
+        <BottomNav view={view} onNavigate={setView} />
       </div>
     );
   }
@@ -387,8 +317,8 @@ export default function Page() {
   // ─── CLAIM (DETAIL) ───
   if (view === "claim") {
     const di = dropInfo;
-    const isExpired = di ? Number(di[4]) <= Date.now() / 1000 : false;
-    const isLive = di ? di[6] && !isExpired && Number(di[3]) < Number(di[2]) : false;
+    const isExpired = di ? di.expiresAt <= Date.now() / 1000 : false;
+    const isLive = di ? di.active && !isExpired && di.claimedCount < di.totalClaims : false;
     return (
       <div style={S}>
         <div style={{ background: "#111", padding: "14px 18px 22px", textAlign: "center", position: "relative", overflow: "hidden" }}>
@@ -396,9 +326,9 @@ export default function Page() {
           <div onClick={() => setView("home")} style={{ textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 600, marginBottom: 14, cursor: "pointer", position: "relative" }}>← Back</div>
           {di ? (<>
             <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(255,255,255,0.1)", margin: "0 auto 10px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, border: "1.5px solid rgba(255,255,255,0.2)", position: "relative" }}>{EMOJIS[parseInt(claimDropId) % EMOJIS.length]}</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginBottom: 4, position: "relative" }}>{shortAddr(String(di[0]))}</div>
-            {di[5] && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14, fontStyle: "italic", position: "relative" }}>"{String(di[5])}"</div>}
-            <div style={{ fontSize: 40, fontWeight: 800, color: "#fff", letterSpacing: -1.5, position: "relative" }}>{formatUSDC(di[1])}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginBottom: 4, position: "relative" }}>{shortAddr(di.creator)}</div>
+            {di.message && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14, fontStyle: "italic", position: "relative" }}>"{di.message}"</div>}
+            <div style={{ fontSize: 40, fontWeight: 800, color: "#fff", letterSpacing: -1.5, position: "relative" }}>{formatUSDC(di.amountPerClaim)}</div>
             <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", position: "relative", marginTop: 2 }}>USDC per claim</div>
           </>) : <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, position: "relative" }}>Enter a Drop ID below</div>}
         </div>
@@ -417,45 +347,29 @@ export default function Page() {
           {di && (<>
             <div style={{ background: isExpired ? "#FEE2E2" : "#FFFBEB", border: `1px solid ${isExpired ? "#FECACA" : "#FDE68A"}`, borderRadius: 14, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 10, color: isExpired ? "#DC2626" : "#92400E", fontWeight: 600 }}>⏰ {isExpired ? "Expired" : "Expires in"}</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: isExpired ? "#DC2626" : "#F59E0B" }}>{timeLeft(Number(di[4]))}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: isExpired ? "#DC2626" : "#F59E0B" }}>{timeLeft(di.expiresAt)}</div>
             </div>
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#111" }}>{String(di[3])} of {String(di[2])} claimed</span>
-                <span style={{ fontSize: 12, color: "#ccc" }}>{Number(di[2]) - Number(di[3])} left</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#111" }}>{di.claimedCount} of {di.totalClaims} claimed</span>
+                <span style={{ fontSize: 12, color: "#ccc" }}>{di.totalClaims - di.claimedCount} left</span>
               </div>
               <div style={{ height: 4, background: "#F0F0F0", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${(Number(di[3]) / Number(di[2])) * 100}%`, background: "#6366F1" }} />
+                <div style={{ height: "100%", width: `${(di.claimedCount / di.totalClaims) * 100}%`, background: "#6366F1" }} />
               </div>
             </div>
           </>)}
           {isLive && (
             <button onClick={handleClaim} disabled={!isConnected || claimStep === "claiming"} style={{ width: "100%", background: claimStep === "claiming" ? "#6366F1" : "#111", color: "#fff", border: "none", borderRadius: 16, padding: 14, fontSize: 14, fontWeight: 800, cursor: isConnected && claimStep !== "claiming" ? "pointer" : "not-allowed", opacity: !isConnected ? 0.5 : 1, marginBottom: 10 }}>
-              {claimStep === "claiming" ? "Claiming..." : `Claim ${di ? formatUSDC(di[1]) : ""} USDC 💧`}
+              {claimStep === "claiming" ? "Claiming..." : `Claim ${di ? formatUSDC(di.amountPerClaim) : ""} USDC 💧`}
             </button>
           )}
           {!isConnected && <div style={{ textAlign: "center", marginBottom: 10 }}><ConnectWallet /></div>}
         </div>
-        <BottomNav />
+        <BottomNav view={view} onNavigate={setView} />
       </div>
     );
   }
-
-  const LeaderboardList = ({ title, icon, entries }: { title: string; icon: string; entries: LeaderboardEntry[] }) => (
-    <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #F0F0F0", padding: 14, marginBottom: 10, flex: 1 }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: "#111", marginBottom: 8 }}>{icon} {title}</div>
-      {entries.length === 0 ? <div style={{ fontSize: 11, color: "#bbb", padding: "8px 0" }}>No data yet</div> :
-        entries.map((e, i) => (
-          <div key={e.address} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: i < entries.length - 1 ? "0.5px solid #F5F5F5" : "none" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 18, textAlign: "center", fontSize: i < 3 ? 14 : 10, fontWeight: 700, color: i < 3 ? "#111" : "#ccc" }}>{i < 3 ? RANK_EMOJI[i] : `#${i + 1}`}</div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#111" }}>{shortAddr(e.address)}</div>
-            </div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: "#111" }}>${e.total.toFixed(2)}</div>
-          </div>
-        ))}
-    </div>
-  );
 
   // ─── EXPLORE ───
   if (view === "explore") return (
@@ -475,9 +389,9 @@ export default function Page() {
         </div>
         {loadingDrops ? <div style={{ textAlign: "center", padding: 40, fontSize: 12, color: "#bbb" }}>Loading...</div> :
           allDrops.length === 0 ? <div style={{ textAlign: "center", padding: 40, fontSize: 12, color: "#bbb" }}>No drops yet. Be the first! 🚀</div> :
-          allDrops.map(d => <DropCard key={d.id} d={d} />)}
+          allDrops.map(d => <DropCard key={d.id} d={d} onOpen={openClaim} />)}
       </div>
-      <BottomNav />
+      <BottomNav view={view} onNavigate={setView} />
     </div>
   );
 
@@ -534,10 +448,10 @@ export default function Page() {
               <div style={{ fontSize: 12, color: "#bbb", marginBottom: 8 }}>No live drops right now</div>
               <button onClick={() => setView("create")} style={{ background: "#F8F7FF", color: "#6366F1", border: "1px solid #EBEBFF", borderRadius: 12, padding: "8px 16px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Be the first →</button>
             </div>
-          ) : liveDrops.slice(0, 3).map(d => <DropCard key={d.id} d={d} />)}
+          ) : liveDrops.slice(0, 3).map(d => <DropCard key={d.id} d={d} onOpen={openClaim} />)}
       </div>
 
-      <BottomNav />
+      <BottomNav view={view} onNavigate={setView} />
       <style>{`@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }`}</style>
     </div>
   );
