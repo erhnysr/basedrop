@@ -3,19 +3,22 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useAccount, useWriteContract } from "wagmi";
 import { ConnectWallet } from "@coinbase/onchainkit/wallet";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, http, parseUnits } from "viem";
 import { base } from "viem/chains";
 import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURATIONS, DropInfo, parseDropInfo } from "../lib/contract";
 import { View, LeaderboardEntry } from "../lib/types";
 import { shortAddr, formatUSDC, timeLeft, EMOJIS } from "../lib/format";
+import { resolveInput } from "../lib/resolve";
 import { BottomNav } from "./components/BottomNav";
 import { DropCard } from "./components/DropCard";
 import { MyDropCard } from "./components/MyDropCard";
 import { LeaderboardList } from "./components/LeaderboardList";
+import { Confetti } from "./components/Confetti";
 
 const rpc = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
 
 const BUILDER_CODE: `0x${string}` = "0x62635f646e33726c353437";
+const TIP_AMOUNTS = [0.5, 1, 2, 5] as const;
 
 export default function Page() {
   const { setFrameReady, isFrameReady } = useMiniKit();
@@ -37,12 +40,26 @@ export default function Page() {
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [topCreators, setTopCreators] = useState<LeaderboardEntry[]>([]);
   const [topClaimers, setTopClaimers] = useState<LeaderboardEntry[]>([]);
+  const [topTippers, setTopTippers] = useState<LeaderboardEntry[]>([]);
   const [, setTick] = useState(0);
 
   // ─── Referral state ───
   const [referrerAddress, setReferrerAddress] = useState("");
   const [referralPoints, setReferralPoints] = useState(0);
   const [refCopied, setRefCopied] = useState(false);
+
+  // ─── Tip state ───
+  const [tipInput, setTipInput] = useState("");
+  const [tipRecipient, setTipRecipient] = useState<`0x${string}` | null>(null);
+  const [tipRecipientName, setTipRecipientName] = useState("");
+  const [tipResolving, setTipResolving] = useState(false);
+  const [tipError, setTipError] = useState("");
+  const [tipPreset, setTipPreset] = useState<number>(1);
+  const [tipCustom, setTipCustom] = useState("");
+  const [tipStep, setTipStep] = useState<"idle" | "sending" | "done">("idle");
+  const [tipTxHash, setTipTxHash] = useState("");
+  const [tipSentAmount, setTipSentAmount] = useState(0);
+  const [confetti, setConfetti] = useState(false);
 
   const BASE_URL = process.env.NEXT_PUBLIC_URL || "https://basedrop-chi.vercel.app";
 
@@ -100,6 +117,7 @@ export default function Page() {
       const data = await res.json();
       setTopCreators((data.creators || []).map((c: any) => ({ address: c.creator_address, total: Number(c.total_dropped) || 0 })));
       setTopClaimers((data.claimers || []).map((c: any) => ({ address: c.claimer_address, total: Number(c.total_claimed) || 0 })));
+      setTopTippers((data.tippers || []).map((t: any) => ({ address: t.tipper_address, total: Number(t.total_tipped) || 0 })));
     } catch {}
   }, []);
 
@@ -192,6 +210,48 @@ export default function Page() {
       await fetchAllDrops();
     } catch (e) { console.error(e); }
     setCancellingId(null);
+  };
+
+  const handleResolveTip = async () => {
+    const q = tipInput.trim();
+    if (!q || tipResolving) return;
+    setTipResolving(true); setTipError("");
+    const addr = await resolveInput(q);
+    setTipResolving(false);
+    if (!addr) { setTipError("Couldn't find that address or name"); return; }
+    setTipRecipient(addr);
+    setTipRecipientName(q);
+  };
+
+  const changeTipRecipient = () => {
+    setTipRecipient(null); setTipRecipientName(""); setTipInput(""); setTipError("");
+    setTipStep("idle"); setTipCustom(""); setTipPreset(1); setTipTxHash("");
+  };
+
+  const handleSendTip = async () => {
+    const amt = tipCustom ? parseFloat(tipCustom) : tipPreset;
+    if (!isConnected || !address || !tipRecipient || !amt || amt <= 0 || isNaN(amt)) return;
+    try {
+      setTipStep("sending");
+      const tx = await writeContractAsync({
+        address: USDC_ADDRESS,
+        abi: USDC_ABI,
+        functionName: "transfer",
+        args: [tipRecipient, parseUnits(amt.toFixed(6), USDC_DECIMALS)],
+        dataSuffix: BUILDER_CODE,
+      });
+      await rpc.waitForTransactionReceipt({ hash: tx });
+      setTipTxHash(tx);
+      setTipSentAmount(amt);
+      setTipStep("done");
+      setConfetti(true);
+      setTimeout(() => setConfetti(false), 4000);
+      fetch("/api/tips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipper_address: address, recipient_address: tipRecipient, amount: amt, tx_hash: tx }),
+      }).then(() => fetchLeaderboard()).catch(() => {});
+    } catch (e) { console.error(e); setTipStep("idle"); }
   };
 
   const shareLink = createdDropId !== null ? `${BASE_URL}?claim=${createdDropId}` : "";
@@ -393,9 +453,10 @@ export default function Page() {
         <div onClick={fetchAllDrops} style={{ fontSize: 11, color: "#6366F1", fontWeight: 600, cursor: "pointer" }}>↻ Refresh</div>
       </div>
       <div style={{ padding: "14px 18px 100px" }}>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 8 }}>
           <LeaderboardList title="Top Creators" icon="🏆" entries={topCreators} />
           <LeaderboardList title="Top Claimers" icon="💎" entries={topClaimers} />
+          <LeaderboardList title="Top Tippers" icon="💸" entries={topTippers} />
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: "#111" }}>All drops</div>
@@ -437,6 +498,96 @@ export default function Page() {
       <BottomNav view={view} onNavigate={setView} />
     </div>
   );
+
+  // ─── TIP ───
+  if (view === "tip") {
+    const tipAmt = tipCustom ? parseFloat(tipCustom) : tipPreset;
+
+    // Success screen
+    if (tipStep === "done") return (
+      <div style={{ ...S, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
+        <Confetti active={confetti} />
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
+        <div style={{ fontSize: 26, fontWeight: 800, color: "#111", letterSpacing: -0.8, marginBottom: 4 }}>Tip sent!</div>
+        <div style={{ fontSize: 12, color: "#bbb", marginBottom: 24 }}>USDC sent directly to their wallet</div>
+        <div style={{ fontSize: 60, fontWeight: 800, color: "#111", letterSpacing: -2, marginBottom: 4 }}>${tipSentAmount.toFixed(2)}</div>
+        <div style={{ fontSize: 12, color: "#bbb", marginBottom: 28 }}>USDC · Base Mainnet</div>
+
+        <div style={{ background: "#fff", border: "1px solid #F0F0F0", borderRadius: 20, padding: 16, width: "100%", marginBottom: 20 }}>
+          {([["To", tipRecipientName || shortAddr(tipRecipient || "")], ["Amount", `$${tipSentAmount.toFixed(2)} USDC`], ["Network", "Base"], ["Fee", "$0.00 🎉"], ["Status", "✓ Confirmed"]] as const).map(([l, v]) => (
+            <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "0.5px solid #F5F5F5" }}>
+              <span style={{ fontSize: 11, color: "#bbb" }}>{l}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: l === "Fee" || l === "Status" ? "#10B981" : "#111" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+
+        {tipTxHash && (
+          <a href={`https://basescan.org/tx/${tipTxHash}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#6366F1", fontWeight: 600, fontFamily: "monospace", textDecoration: "none", marginBottom: 16 }}>
+            {tipTxHash.slice(0, 10)}…{tipTxHash.slice(-8)} ↗
+          </a>
+        )}
+
+        <button onClick={() => { const t = encodeURIComponent(`I just tipped ${tipRecipientName || shortAddr(tipRecipient || "")} $${tipSentAmount} USDC on Basedrop 💸\n\nSupport builders onchain 👇`); const u = encodeURIComponent(BASE_URL); window.open("https://warpcast.com/~/compose?text=" + t + "&embeds[]=" + u, "_blank"); }} style={{ width: "100%", background: "#7C3AED", color: "#fff", border: "none", borderRadius: 16, padding: 14, fontSize: 14, fontWeight: 800, cursor: "pointer", marginBottom: 8 }}>🟣 Share on Warpcast</button>
+        <button onClick={() => { setTipStep("idle"); setTipCustom(""); setTipPreset(1); setTipTxHash(""); }} style={{ width: "100%", background: "#111", color: "#fff", border: "none", borderRadius: 16, padding: 14, fontSize: 14, fontWeight: 800, cursor: "pointer", marginBottom: 8 }}>Send another tip</button>
+        <button onClick={() => { changeTipRecipient(); setView("home"); }} style={{ width: "100%", background: "#F0F0F0", color: "#333", border: "none", borderRadius: 16, padding: 14, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Back to Home</button>
+      </div>
+    );
+
+    // Form
+    return (
+      <div style={S}>
+        <div style={{ background: "#111", padding: "14px 18px 22px", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", width: 140, height: 140, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.35) 0%, transparent 70%)", top: -40, right: -20 }} />
+          <div onClick={() => setView("home")} style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 600, marginBottom: 14, cursor: "pointer", position: "relative" }}>← Back</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: -0.8, marginBottom: 3, position: "relative" }}>Send a tip 💸</div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", position: "relative" }}>USDC straight to any wallet, ENS or basename</div>
+        </div>
+        <div style={{ padding: "16px 18px 100px" }}>
+          {!tipRecipient ? (
+            <>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#bbb", letterSpacing: 0.6, marginBottom: 5, textTransform: "uppercase" }}>Recipient</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <input value={tipInput} onChange={e => { setTipInput(e.target.value); setTipError(""); }} onKeyDown={e => e.key === "Enter" && handleResolveTip()} placeholder="0x… or name.base.eth" autoComplete="off" autoCapitalize="off" spellCheck={false} style={{ flex: 1, background: "#fff", border: "1.5px solid #F0F0F0", borderRadius: 12, padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#111", outline: "none", boxSizing: "border-box", fontFamily: "monospace" }} />
+                <button onClick={handleResolveTip} disabled={!tipInput.trim() || tipResolving} style={{ background: "#111", color: "#fff", border: "none", borderRadius: 12, padding: "0 16px", fontSize: 13, fontWeight: 700, cursor: tipInput.trim() && !tipResolving ? "pointer" : "not-allowed", opacity: !tipInput.trim() ? 0.5 : 1 }}>{tipResolving ? "…" : "→"}</button>
+              </div>
+              {tipError && <div style={{ fontSize: 11, color: "#DC2626", fontWeight: 600, marginBottom: 8 }}>{tipError}</div>}
+              <div style={{ fontSize: 10, color: "#ccc" }}>Enter an address, ENS (.eth) or basename (.base.eth).</div>
+            </>
+          ) : (
+            <>
+              <div style={{ background: "#F8F7FF", border: "1.5px solid #EBEBFF", borderRadius: 14, padding: "12px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "#bbb", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 3 }}>Tipping</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "#111" }}>{tipRecipientName}</div>
+                  <div style={{ fontSize: 10, color: "#bbb", fontFamily: "monospace", marginTop: 1 }}>{shortAddr(tipRecipient)}</div>
+                </div>
+                <button onClick={changeTipRecipient} disabled={tipStep !== "idle"} style={{ background: "#fff", color: "#6366F1", border: "1px solid #EBEBFF", borderRadius: 10, padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: tipStep === "idle" ? "pointer" : "not-allowed" }}>Change</button>
+              </div>
+
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#bbb", letterSpacing: 0.6, marginBottom: 5, textTransform: "uppercase" }}>Amount</div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                {TIP_AMOUNTS.map(a => {
+                  const selected = !tipCustom && tipPreset === a;
+                  return (
+                    <div key={a} onClick={() => { if (tipStep === "idle") { setTipPreset(a); setTipCustom(""); } }} style={{ flex: 1, border: `1.5px solid ${selected ? "#111" : "#F0F0F0"}`, borderRadius: 10, padding: "10px 4px", fontSize: 13, fontWeight: 700, color: selected ? "#111" : "#bbb", textAlign: "center", cursor: tipStep === "idle" ? "pointer" : "not-allowed", background: "#fff" }}>${a}</div>
+                  );
+                })}
+              </div>
+              <input value={tipCustom} onChange={e => setTipCustom(e.target.value)} type="number" min="0.01" step="0.01" disabled={tipStep !== "idle"} placeholder="Custom amount" style={{ width: "100%", background: tipCustom ? "#F8F7FF" : "#fff", border: `1.5px solid ${tipCustom ? "#EBEBFF" : "#F0F0F0"}`, borderRadius: 12, padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "#111", outline: "none", boxSizing: "border-box", marginBottom: 14 }} />
+
+              <button onClick={handleSendTip} disabled={!isConnected || tipStep !== "idle" || !tipAmt || tipAmt <= 0} style={{ width: "100%", background: tipStep === "idle" ? "#111" : "#7C3AED", color: "#fff", border: "none", borderRadius: 16, padding: 14, fontSize: 14, fontWeight: 800, cursor: tipStep === "idle" && isConnected ? "pointer" : "not-allowed", opacity: !isConnected || !tipAmt || tipAmt <= 0 ? 0.5 : 1, marginBottom: 8 }}>
+                {tipStep === "sending" ? "Sending tip..." : `Send $${tipAmt || "?"} 💸`}
+              </button>
+              {!isConnected && <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}><ConnectWallet /></div>}
+              <div style={{ textAlign: "center", fontSize: 10, color: "#ccc" }}>100% goes to {shortAddr(tipRecipient)} · Zero platform fees</div>
+            </>
+          )}
+        </div>
+        <BottomNav view={view} onNavigate={setView} />
+      </div>
+    );
+  }
 
   // ─── HOME ───
   return (
