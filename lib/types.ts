@@ -1,4 +1,4 @@
-export type View = "home" | "create" | "claim" | "explore";
+export type View = "home" | "create" | "claim" | "explore" | "profile";
 
 export interface LeaderboardEntry {
   address: string;

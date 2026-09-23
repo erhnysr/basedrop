@@ -10,6 +10,7 @@ import { View, LeaderboardEntry } from "../lib/types";
 import { shortAddr, formatUSDC, timeLeft, EMOJIS } from "../lib/format";
 import { BottomNav } from "./components/BottomNav";
 import { DropCard } from "./components/DropCard";
+import { MyDropCard } from "./components/MyDropCard";
 import { LeaderboardList } from "./components/LeaderboardList";
 
 const rpc = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
@@ -33,6 +34,7 @@ export default function Page() {
   const [dropInfo, setDropInfo] = useState<DropInfo | null>(null);
   const [allDrops, setAllDrops] = useState<DropInfo[]>([]);
   const [loadingDrops, setLoadingDrops] = useState(true);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [topCreators, setTopCreators] = useState<LeaderboardEntry[]>([]);
   const [topClaimers, setTopClaimers] = useState<LeaderboardEntry[]>([]);
   const [, setTick] = useState(0);
@@ -181,11 +183,23 @@ export default function Page() {
     } catch (e) { console.error(e); setClaimStep("idle"); }
   };
 
+  const handleCancel = async (dropId: number) => {
+    if (!isConnected) return;
+    try {
+      setCancellingId(dropId);
+      const tx = await writeContractAsync({ address: ESCROW_ADDRESS as `0x${string}`, abi: ESCROW_ABI, functionName: "cancelDrop", args: [BigInt(dropId)], dataSuffix: BUILDER_CODE });
+      await rpc.waitForTransactionReceipt({ hash: tx });
+      await fetchAllDrops();
+    } catch (e) { console.error(e); }
+    setCancellingId(null);
+  };
+
   const shareLink = createdDropId !== null ? `${BASE_URL}?claim=${createdDropId}` : "";
   const handleCopy = () => { navigator.clipboard.writeText(shareLink); setCopied(true); setTimeout(() => setCopied(false), 2000); };
   const openClaim = (id: number) => { setClaimDropId(String(id)); setClaimStep("idle"); setDropInfo(null); setView("claim"); };
 
   const liveDrops = allDrops.filter(d => d.active && d.expiresAt > Date.now() / 1000 && d.claimedCount < d.totalClaims);
+  const myDrops = address ? allDrops.filter(d => d.creator.toLowerCase() === address.toLowerCase()) : [];
   const totalDropped = allDrops.reduce((s, d) => s + Number(d.amountPerClaim) * d.claimedCount / 10 ** USDC_DECIMALS, 0);
   const totalClaimed = allDrops.reduce((s, d) => s + d.claimedCount, 0);
 
@@ -390,6 +404,35 @@ export default function Page() {
         {loadingDrops ? <div style={{ textAlign: "center", padding: 40, fontSize: 12, color: "#bbb" }}>Loading...</div> :
           allDrops.length === 0 ? <div style={{ textAlign: "center", padding: 40, fontSize: 12, color: "#bbb" }}>No drops yet. Be the first! 🚀</div> :
           allDrops.map(d => <DropCard key={d.id} d={d} onOpen={openClaim} />)}
+      </div>
+      <BottomNav view={view} onNavigate={setView} />
+    </div>
+  );
+
+  // ─── PROFILE ───
+  if (view === "profile") return (
+    <div style={S}>
+      <div style={{ padding: "16px 18px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: "#111", letterSpacing: -0.5 }}>Your drops</div>
+        {isConnected && <div onClick={fetchAllDrops} style={{ fontSize: 11, color: "#6366F1", fontWeight: 600, cursor: "pointer" }}>↻ Refresh</div>}
+      </div>
+      <div style={{ padding: "14px 18px 100px" }}>
+        {!isConnected ? (
+          <div style={{ textAlign: "center", padding: "40px 20px" }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>👤</div>
+            <div style={{ fontSize: 13, color: "#888", fontWeight: 600, marginBottom: 16 }}>Connect wallet to see your drops</div>
+            <div style={{ display: "flex", justifyContent: "center" }}><ConnectWallet /></div>
+          </div>
+        ) : loadingDrops ? (
+          <div style={{ textAlign: "center", padding: 40, fontSize: 12, color: "#bbb" }}>Loading...</div>
+        ) : myDrops.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40 }}>
+            <div style={{ fontSize: 12, color: "#bbb", marginBottom: 8 }}>You haven't created any drops yet</div>
+            <button onClick={() => setView("create")} style={{ background: "#F8F7FF", color: "#6366F1", border: "1px solid #EBEBFF", borderRadius: 12, padding: "8px 16px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Create your first →</button>
+          </div>
+        ) : (
+          myDrops.map(d => <MyDropCard key={d.id} d={d} onCancel={handleCancel} cancelling={cancellingId === d.id} />)
+        )}
       </div>
       <BottomNav view={view} onNavigate={setView} />
     </div>
