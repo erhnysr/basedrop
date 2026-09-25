@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Source_Code_Pro } from "next/font/google";
+import { Inter, Source_Code_Pro, Space_Grotesk } from "next/font/google";
 import { SafeArea } from "@coinbase/onchainkit/minikit";
 import { minikitConfig } from "@/minikit.config";
 import { RootProvider } from "./rootProvider";
@@ -36,6 +36,12 @@ const sourceCodePro = Source_Code_Pro({
   subsets: ["latin"],
 });
 
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -44,7 +50,7 @@ export default function RootLayout({
   return (
     <RootProvider>
       <html lang="en">
-        <body className={`${inter.variable} ${sourceCodePro.variable}`}>
+        <body className={`${inter.variable} ${sourceCodePro.variable} ${spaceGrotesk.variable}`}>
           <SafeArea>{children}</SafeArea>
         </body>
       </html>

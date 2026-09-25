@@ -1,14 +1,9 @@
 @layer base {
   :root {
-    --background: #ffffff;
-    --foreground: #171717;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --background: #0a0a0a;
-      --foreground: #ededed;
-    }
+    /* Basedrop is a dark-only app — tokens mirror lib/theme.ts */
+    --background: #0a0a0f;
+    --foreground: #f5f5f7;
+    color-scheme: dark;
   }
 
   html,
@@ -30,19 +25,12 @@
   }
 
   code {
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: rgba(255, 255, 255, 0.05);
     border-radius: 6px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     font-family: var(--font-source-code-pro), monospace;
     font-size: 0.875rem;
     padding: 0.25rem 0.5rem calc(0.25rem + 2px);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    code {
-      background-color: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
   }
 
   * {
@@ -56,38 +44,23 @@
     text-decoration: none;
   }
 
-  @media (prefers-color-scheme: dark) {
-    html {
-      color-scheme: dark;
-    }
+  ::selection {
+    background: rgba(0, 229, 160, 0.25);
+    color: #f5f5f7;
   }
 }
 
-.claim-btn {
-  background: #111 !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: 12px !important;
-  padding: 10px 14px !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  cursor: pointer !important;
-  white-space: nowrap !important;
+/* Tabular figures utility for USDC amounts */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 
-/* Custom Wallet Button */
-.custom-wallet-btn {
-  background: #111 !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: 12px !important;
-  padding: 8px 14px !important;
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.2px !important;
-  cursor: pointer !important;
-  min-width: auto !important;
-}
-.custom-wallet-btn:hover {
-  background: #222 !important;
+/* OnchainKit ConnectWallet — align its primary button with the accent theme.
+   Unknown/renamed vars simply no-op, so this is safe across versions. */
+:root {
+  --ock-bg-primary: #00e5a0;
+  --ock-bg-primary-hover: #00cf90;
+  --ock-bg-primary-active: #00b880;
+  --ock-text-inverse: #05130d;
+  --ock-border-radius: 14px;
 }

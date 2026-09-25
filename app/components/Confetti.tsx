@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-const COLORS = ["#6366F1", "#7B61FF", "#10B981", "#FFD700", "#FF6B6B", "#FF9500", "#FF69B4", "#00BFFF"];
+const COLORS = ["#00E5A0", "#7B61FF", "#00D97E", "#FFD700", "#FF5470", "#FF9500", "#00BFFF", "#F5F5F7"];
 
 interface Piece {
   id: number;
