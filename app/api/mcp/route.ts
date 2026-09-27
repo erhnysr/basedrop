@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http, formatUnits } from "viem";
-import { base } from "viem/chains";
+import { formatUnits } from "viem";
 import { supabase } from "@/lib/supabase";
 import { ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS } from "@/lib/contract";
-
-const rpc = createPublicClient({
-  chain: base,
-  transport: http("https://mainnet.base.org"),
-});
+import { rpc } from "@/lib/rpc";
 
 // ─── Tool definitions ────────────────────────────────────────────────────────
 

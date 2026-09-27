@@ -1,26 +1,43 @@
 // ─── Basedrop design tokens ───
-// Single source of truth for the dark "onchain reward layer" theme.
-// Components import C / fonts instead of hardcoding hex values.
+// Every value is a CSS variable defined in app/globals.css, so the whole UI
+// follows the system light/dark theme without any per-component logic.
+//   accent (Base Blue) → actions only: buttons, links, nav, progress
+//   money              → plain ink, heavy weight (no special money colour)
+//   live / danger      → semantic state only
 
 export const C = {
-  bg: "#0A0A0F",          // app background (deep navy-black)
-  surface: "#1A1A24",     // raised surface (cards, nav, inputs)
-  surfaceHi: "#22222E",   // slightly lighter surface (hover, selected)
-  accent: "#00E5A0",      // electric green — CTAs, active, success
-  accentInk: "#05130D",   // dark text placed on top of accent
-  accentDim: "rgba(0,229,160,0.12)", // accent tint fill
-  text: "#F5F5F7",        // primary text
-  textDim: "#8A8A9A",     // secondary text
-  textFaint: "#5A5A6A",   // tertiary / hints
-  danger: "#FF5470",      // errors, warnings, destructive
-  dangerDim: "rgba(255,84,112,0.12)",
-  hairline: "rgba(255,255,255,0.08)",       // thin dividers / borders
-  hairlineStrong: "rgba(255,255,255,0.14)", // emphasized hairline
+  bg: "var(--bd-bg)",
+  surface: "var(--bd-card)",        // cards, inputs
+  surfaceHi: "var(--bd-card-hi)",   // hover / selected / insets
+  sunken: "var(--bd-sunken)",       // tracks, skeleton base
+
+  accent: "var(--bd-blue)",
+  accentInk: "#FFFFFF",
+  accentDim: "var(--bd-blue-soft)",
+
+  text: "var(--bd-ink)",
+  textDim: "var(--bd-ink2)",
+  textFaint: "var(--bd-ink3)",
+
+  live: "var(--bd-live)",
+  liveDim: "var(--bd-live-soft)",
+  danger: "var(--bd-danger)",
+  dangerDim: "var(--bd-danger-soft)",
+
+  solid: "var(--bd-solid)",         // high-contrast chip / FAB
+  solidInk: "var(--bd-solid-ink)",
+
+  hairline: "var(--bd-line)",
+  hairlineStrong: "var(--bd-line2)",
+  shadowCard: "var(--bd-shadow)",
 } as const;
 
-// Font CSS variables (declared in app/layout.tsx via next/font).
-export const FONT_DISPLAY = "var(--font-space-grotesk), sans-serif"; // headings + numbers
-export const FONT_BODY = "var(--font-inter), sans-serif";            // body copy
+export const FONT_BODY = "var(--font-geist), ui-sans-serif, system-ui, sans-serif";
+export const FONT_DISPLAY = FONT_BODY;
+export const FONT_MONO = "var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace";
+export const FONT_SERIF = "var(--font-instrument-serif), Georgia, serif";
 
-// Reusable style fragments.
 export const TNUM: React.CSSProperties = { fontVariantNumeric: "tabular-nums" };
+
+// Exactly three radii: cards, controls, pills.
+export const RADIUS = { card: 20, ctl: 14, pill: 999 } as const;

@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     expires_at,
     message,
     tx_hash,
+    onchain_id,
   } = body;
 
   if (
@@ -38,18 +39,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data, error } = await supabase
-    .from("drops")
-    .insert({
-      creator_address,
-      amount_per_claim,
-      total_claims,
-      expires_at,
-      message,
-      tx_hash,
-    })
-    .select()
-    .single();
+  const row = {
+    creator_address: String(creator_address).toLowerCase(),
+    amount_per_claim,
+    total_claims,
+    expires_at,
+    message,
+    tx_hash,
+  };
+  const withId = onchain_id !== undefined && onchain_id !== null ? { ...row, onchain_id: Number(onchain_id) } : row;
+
+  let { data, error } = await supabase.from("drops").insert(withId).select().single();
+  // Column missing (42703 / PGRST204): migration 0004 not applied yet — store without the link.
+  if ((error?.code === "42703" || error?.code === "PGRST204") && withId !== row) {
+    ({ data, error } = await supabase.from("drops").insert(row).select().single());
+  }
 
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 500 });

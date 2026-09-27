@@ -1,22 +1,26 @@
 "use client";
+import { ComponentType } from "react";
 import { LeaderboardEntry } from "../../lib/types";
-import { shortAddr, RANK_EMOJI } from "../../lib/format";
-import { C, TNUM } from "../../lib/theme";
+import { C, FONT_MONO, TNUM } from "../../lib/theme";
+import { Card } from "./ui";
+import { Avatar, DisplayName } from "./Identity";
 
-export function LeaderboardList({ title, icon, entries }: { title: string; icon: string; entries: LeaderboardEntry[] }) {
+export function LeaderboardList({ title, Icon, entries }: { title: string; Icon: ComponentType<{ size?: number; color?: string }>; entries: LeaderboardEntry[] }) {
   return (
-    <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.hairline}`, padding: 12, marginBottom: 10, flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 8 }}>{icon} {title}</div>
-      {entries.length === 0 ? <div style={{ fontSize: 11, color: C.textDim, padding: "8px 0" }}>No data yet</div> :
-        entries.map((e, i) => (
-          <div key={e.address} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 4, padding: "6px 0", borderBottom: i < entries.length - 1 ? `1px solid ${C.hairline}` : "none" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-              <div style={{ width: 16, flexShrink: 0, textAlign: "center", fontSize: i < 3 ? 13 : 10, fontWeight: 700, color: i < 3 ? C.text : C.textDim }}>{i < 3 ? RANK_EMOJI[i] : `#${i + 1}`}</div>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-source-code-pro), monospace" }}>{shortAddr(e.address)}</div>
-            </div>
-            <div style={{ ...TNUM, fontSize: 10.5, fontWeight: 700, color: C.accent, flexShrink: 0 }}>${e.total.toFixed(2)}</div>
-          </div>
-        ))}
-    </div>
+    <Card style={{ padding: "14px 16px", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, letterSpacing: "-0.02em", marginBottom: 8 }}>
+        <Icon size={15} color={C.textDim} /> {title}
+      </div>
+      {entries.length === 0 ? (
+        <div style={{ fontSize: 13, color: C.textDim, padding: "6px 0" }}>No entries yet</div>
+      ) : entries.slice(0, 5).map((e, i) => (
+        <div key={e.address} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i ? `1px solid ${C.hairline}` : "none" }}>
+          <span style={{ ...TNUM, width: 18, fontFamily: FONT_MONO, fontSize: 11, color: i < 3 ? C.text : C.textFaint, fontWeight: 600 }}>{i + 1}</span>
+          <Avatar address={e.address} size={24} />
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><DisplayName address={e.address} /></span>
+          <span style={{ ...TNUM, fontSize: 13, fontWeight: 600 }}>${e.total.toFixed(2)}</span>
+        </div>
+      ))}
+    </Card>
   );
 }

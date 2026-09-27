@@ -1,6 +1,8 @@
 "use client";
 import { ReactNode } from "react";
-import { WagmiProvider, createConfig, http } from "wagmi";
+import { WagmiProvider, createConfig } from "wagmi";
+import { baseTransport, mainnetRpc } from "../lib/rpc";
+import { mainnet } from "wagmi/chains";
 import { base } from "wagmi/chains";
 import { coinbaseWallet, metaMask, injected } from "wagmi/connectors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,7 +19,7 @@ const wagmiConfig = createConfig({
     coinbaseWallet({ appName: "Basedrop" }),
   ],
   transports: {
-    [base.id]: http("https://mainnet.base.org"),
+    [base.id]: baseTransport,
   },
 });
 
@@ -25,7 +27,7 @@ export function RootProvider({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <OnchainKitProvider chain={base} config={{ appearance: { mode: "dark", theme: "default" }, wallet: { display: "modal" } }} miniKit={{ enabled: true, autoConnect: true }}>
+        <OnchainKitProvider defaultPublicClients={{ [mainnet.id]: mainnetRpc }} apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY} chain={base} config={{ appearance: { mode: "auto", theme: "default" }, wallet: { display: "modal" } }} miniKit={{ enabled: true, autoConnect: true }}>
           {children}
         </OnchainKitProvider>
       </QueryClientProvider>
