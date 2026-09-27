@@ -120,24 +120,26 @@
   }
 }
 
-/* ─── base ─── */
-* { box-sizing: border-box; padding: 0; margin: 0; }
-html, body { max-width: 100vw; overflow-x: hidden; }
-body {
-  color: var(--bd-ink);
-  background: var(--bd-bg);
-  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  min-height: 100vh;
+/* ─── base — layered so OnchainKit's own (layered) styles still apply ─── */
+@layer base {
+  * { box-sizing: border-box; padding: 0; margin: 0; }
+  html, body { max-width: 100vw; overflow-x: hidden; }
+  body {
+    color: var(--bd-ink);
+    background: var(--bd-bg);
+    font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; }
+  input { font: inherit; color: inherit; }
+  input::placeholder { color: var(--bd-ink3); }
+  ::selection { background: var(--bd-blue-soft); }
+  :focus-visible { outline: 2px solid var(--bd-blue); outline-offset: 2px; }
+  .tnum { font-variant-numeric: tabular-nums; }
 }
-a { color: inherit; text-decoration: none; }
-button { font: inherit; }
-input { font: inherit; color: inherit; }
-input::placeholder { color: var(--bd-ink3); }
-::selection { background: var(--bd-blue-soft); }
-:focus-visible { outline: 2px solid var(--bd-blue); outline-offset: 2px; }
-.tnum { font-variant-numeric: tabular-nums; }
 
 /* ─── shell: Base-blue light field + grain (kills gradient banding) ─── */
 .bd-shell {
