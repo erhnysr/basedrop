@@ -4,6 +4,7 @@ import { C, RADIUS } from "../../lib/theme";
 import { ConnectPill } from "./ConnectPill";
 import { Avatar, DisplayName } from "./Identity";
 import { IconLink } from "./Icon";
+import { Mark, Wordmark } from "./Mark";
 
 const NAV: { v: View; label: string }[] = [
   { v: "home", label: "Home" }, { v: "explore", label: "Explore" }, { v: "tip", label: "Tip" }, { v: "profile", label: "Profile" },
@@ -11,11 +12,9 @@ const NAV: { v: View; label: string }[] = [
 
 export function Brand({ onClick }: { onClick?: () => void }) {
   return (
-    <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", color: C.text }}>
-      <span style={{ width: 28, height: 28, borderRadius: 8, background: C.accent, display: "grid", placeItems: "center", boxShadow: "inset 0 1px 0 rgba(255,255,255,.28), 0 2px 8px -2px var(--bd-blue)" }}>
-        <svg width="12" height="15" viewBox="0 0 12 15" aria-hidden><path d="M6 .8C8.6 4 11 6.8 11 9.6A5 5 0 0 1 1 9.6C1 6.8 3.4 4 6 .8Z" fill="#fff" /></svg>
-      </span>
-      <span style={{ fontWeight: 600, fontSize: 17, letterSpacing: "-0.035em" }}>basedrop</span>
+    <button onClick={onClick} aria-label="basedrop home" style={{ display: "flex", alignItems: "center", gap: 9, background: "none", border: "none", cursor: "pointer" }}>
+      <Mark size={30} />
+      <Wordmark />
     </button>
   );
 }

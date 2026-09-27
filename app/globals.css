@@ -221,3 +221,18 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ─── ripples: drop rings spreading from the Base-blue light source ─── */
+:root { --bd-ring: rgba(0, 82, 255, 0.13); }
+@media (prefers-color-scheme: dark) { :root { --bd-ring: rgba(140, 175, 255, 0.10); } }
+.bd-rings {
+  --rs: clamp(720px, 120vw, 1100px);
+  position: fixed; z-index: -2; pointer-events: none;
+  width: var(--rs); height: var(--rs);
+  right: calc(var(--rs) * -0.436); top: calc(var(--rs) * -0.436);
+  -webkit-mask-image: radial-gradient(closest-side, #000 20%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 20%, transparent 100%);
+}
+.bd-rings circle { fill: none; stroke: var(--bd-ring); stroke-width: 1.2; vector-effect: non-scaling-stroke; transform-origin: 550px 550px; animation: bd-ripple 36s ease-in-out infinite alternate; }
+.bd-rings circle:nth-child(2n) { animation-delay: -9s; }
+@keyframes bd-ripple { from { transform: scale(.97); } to { transform: scale(1.04); } }

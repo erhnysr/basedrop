@@ -38,10 +38,11 @@ export async function GET(req: NextRequest) {
       <div style={{ width: W, height: H, display: "flex", background: BG, backgroundImage: `radial-gradient(900px 620px at 100% 0%, rgba(61,125,255,0.30), transparent 65%)`, padding: 80, color: INK, fontFamily: "sans-serif" }}>
         <div style={{ display: "flex", flexDirection: "column", flex: 1.15, justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <div style={{ width: 60, height: 60, borderRadius: 16, background: "#0052FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="26" height="32" viewBox="0 0 12 15"><path d="M6 .8C8.6 4 11 6.8 11 9.6A5 5 0 0 1 1 9.6C1 6.8 3.4 4 6 .8Z" fill="#fff" /></svg>
-            </div>
-            <div style={{ fontSize: 40, fontWeight: 700, letterSpacing: -1.5 }}>basedrop</div>
+            <svg width="64" height="64" viewBox="0 0 96 96">
+              <rect width="96" height="96" rx="26" fill="#0052FF" />
+              <path d="M48 18c11 13.5 21 25.3 21 35.4A21 21 0 0 1 27 53.4C27 43.3 37 31.5 48 18Z" fill="#fff" />
+            </svg>
+            <div style={{ display: "flex", fontSize: 40, letterSpacing: -1.5 }}><span style={{ fontWeight: 400, color: INK2 }}>base</span><span style={{ fontWeight: 700 }}>drop</span></div>
           </div>
           {d ? (
             <div style={{ display: "flex", flexDirection: "column" }}>

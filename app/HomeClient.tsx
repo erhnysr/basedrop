@@ -334,6 +334,9 @@ export default function HomeClient() {
 
   const shell = (children: ReactNode, narrow = true) => (
     <div className="bd-shell">
+      <svg className="bd-rings" viewBox="0 0 1100 1100" aria-hidden>
+        {[90, 170, 260, 360, 470, 590, 720].map(r => <circle key={r} cx="550" cy="550" r={r} />)}
+      </svg>
       <div className="bd-page">
         <TopBar view={view} onNavigate={setView} address={address} referralPoints={referralPoints} />
         {narrow ? <div className="bd-narrow">{children}</div> : children}

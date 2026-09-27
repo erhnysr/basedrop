@@ -22,7 +22,7 @@ export const minikitConfig = {
     screenshotUrls: [],
     iconUrl: `${PRODUCTION_URL}/icon.png`,
     splashImageUrl: `${ROOT_URL}/splash.png`,
-    splashBackgroundColor: "#FFFFFF",
+    splashBackgroundColor: "#0A0B0F",
     homeUrl: ROOT_URL,
     webhookUrl: `${ROOT_URL}/api/webhook`,
     primaryCategory: "finance",
