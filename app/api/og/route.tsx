@@ -1,8 +1,7 @@
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
-import { base } from "viem/chains";
-import { getName } from "@coinbase/onchainkit/identity";
 import { rpc } from "@/lib/rpc";
+import { getBasename } from "@/lib/basename";
 import { ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, parseDropInfo, DropInfo } from "@/lib/contract";
 import { shortAddr, timeLeft } from "@/lib/format";
 
@@ -23,7 +22,7 @@ export async function GET(req: NextRequest) {
   if (id !== null) {
     const info = await withTimeout(rpc.readContract({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "getDropInfo", args: [BigInt(id)] }), 8000);
     if (info) d = parseDropInfo(id, info as readonly unknown[]);
-    if (d) name = await withTimeout(getName({ address: d.creator as `0x${string}`, chain: base }), 1500);
+    if (d) name = await withTimeout(getBasename(d.creator as `0x${string}`), 4000);
   }
 
   const amount = d ? (Number(d.amountPerClaim) / 10 ** USDC_DECIMALS).toFixed(2) : null;
