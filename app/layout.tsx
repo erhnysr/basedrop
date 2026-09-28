@@ -4,6 +4,7 @@ import { SafeArea } from "@coinbase/onchainkit/minikit";
 import { minikitConfig } from "@/minikit.config";
 import { RootProvider } from "./rootProvider";
 import "./globals.css";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme-mode";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -50,7 +51,10 @@ export default function RootLayout({
 }>) {
   return (
     <RootProvider>
-      <html lang="en">
+      <html lang="en" suppressHydrationWarning>
+        <head>
+          <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        </head>
         <body className={`${geist.variable} ${geistMono.variable} ${instrumentSerif.variable}`}>
           <SafeArea>{children}</SafeArea>
         </body>

@@ -2,6 +2,7 @@
 import { ReactNode } from "react";
 import { WagmiProvider, createConfig } from "wagmi";
 import { baseTransport, mainnetRpc } from "../lib/rpc";
+import { useResolvedTheme } from "../lib/theme-mode";
 import { mainnet } from "wagmi/chains";
 import { base } from "wagmi/chains";
 import { coinbaseWallet, metaMask, injected } from "wagmi/connectors";
@@ -24,10 +25,11 @@ const wagmiConfig = createConfig({
 });
 
 export function RootProvider({ children }: { children: ReactNode }) {
+  const mode = useResolvedTheme(); // wallet modal follows the in-app theme
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <OnchainKitProvider defaultPublicClients={{ [mainnet.id]: mainnetRpc }} apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY} chain={base} config={{ appearance: { name: "Basedrop", logo: "/mark.svg", mode: "auto", theme: "default" }, wallet: { display: "modal" } }} miniKit={{ enabled: true, autoConnect: true }}>
+        <OnchainKitProvider defaultPublicClients={{ [mainnet.id]: mainnetRpc }} apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY} chain={base} config={{ appearance: { name: "Basedrop", logo: "/mark.svg", mode, theme: "default" }, wallet: { display: "modal" } }} miniKit={{ enabled: true, autoConnect: true }}>
           {children}
         </OnchainKitProvider>
       </QueryClientProvider>

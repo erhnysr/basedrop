@@ -65,8 +65,9 @@
 }
 
 /* ─── dark ─── */
+/* dark: follows the system unless the user picked a theme in the app */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bd-bg: #0A0B0F;
     --bd-card: #14151C;
     --bd-card-hi: #1B1C25;
@@ -118,6 +119,58 @@
     --ock-error: #f97066;
     --ock-success: #34d399;
   }
+}
+:root[data-theme="dark"] {
+  --bd-bg: #0A0B0F;
+  --bd-card: #14151C;
+  --bd-card-hi: #1B1C25;
+  --bd-sunken: #1E1F28;
+  --bd-sunken-2: #262733;
+  --bd-ink: #F3F4F7;
+  --bd-ink2: #B4B6C4;
+  --bd-ink3: #8B8D9E;
+  --bd-line: rgba(255, 255, 255, 0.07);
+  --bd-line2: rgba(255, 255, 255, 0.13);
+  --bd-blue: #3D7DFF;
+  --bd-blue-top: #4B87FF;
+  --bd-blue-bottom: #2F6BFF;
+  --bd-blue-soft: rgba(61, 125, 255, 0.14);
+  --bd-glow: rgba(61, 125, 255, 0.20);
+  --bd-live: #34D399;
+  --bd-live-soft: rgba(52, 211, 153, 0.14);
+  --bd-danger: #F97066;
+  --bd-danger-soft: rgba(249, 112, 102, 0.12);
+  --bd-solid: #F3F4F7;
+  --bd-solid-ink: #0A0B0F;
+  --bd-tab: rgba(24, 25, 33, 0.78);
+  --bd-code: #14151C;
+  --bd-grain-blend: screen;
+  --bd-grain-opacity: 0.35;
+  --bd-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 28px -16px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+
+  --ock-primary: #3d7dff;
+  --ock-primary-hover: #5a90ff;
+  --ock-primary-active: #2f6bff;
+  --ock-primary-washed: rgba(61, 125, 255, 0.14);
+  --ock-secondary: #1b1c25;
+  --ock-secondary-hover: #232430;
+  --ock-secondary-active: #2b2c39;
+  --ock-foreground: #f3f4f7;
+  --ock-foreground-muted: #b4b6c4;
+  --ock-foreground-inverse: #0a0b0f;
+  --ock-foreground-disabled: #6e7082;
+  --ock-background: #14151c;
+  --ock-background-hover: #1b1c25;
+  --ock-background-active: #232430;
+  --ock-background-alternate: #1b1c25;
+  --ock-background-alternate-hover: #232430;
+  --ock-background-alternate-active: #2b2c39;
+  --ock-background-inverse: #f3f4f7;
+  --ock-background-reverse: #f3f4f7;
+  --ock-line: rgba(255, 255, 255, 0.08);
+  --ock-error: #f97066;
+  --ock-success: #34d399;
 }
 
 /* ─── base — layered so OnchainKit's own (layered) styles still apply ─── */
@@ -225,7 +278,9 @@
 
 /* ─── ripples: drop rings spreading from the Base-blue light source ─── */
 :root { --bd-ring: rgba(0, 82, 255, 0.13); }
-@media (prefers-color-scheme: dark) { :root { --bd-ring: rgba(140, 175, 255, 0.10); } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bd-ring: rgba(140, 175, 255, 0.10); } }
+:root[data-theme="dark"] { --bd-ring: rgba(140, 175, 255, 0.10); }
+:root[data-theme="light"] { color-scheme: light; }
 .bd-rings {
   --rs: clamp(720px, 120vw, 1100px);
   position: fixed; z-index: -2; pointer-events: none;

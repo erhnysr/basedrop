@@ -5,6 +5,7 @@ import { ConnectPill } from "./ConnectPill";
 import { Avatar, DisplayName } from "./Identity";
 import { IconLink } from "./Icon";
 import { Mark, Wordmark } from "./Mark";
+import { ThemeToggle } from "./ThemeToggle";
 
 const NAV: { v: View; label: string }[] = [
   { v: "home", label: "Home" }, { v: "explore", label: "Explore" }, { v: "tip", label: "Tip" }, { v: "profile", label: "Profile" },
@@ -28,6 +29,8 @@ export function TopBar({ view, onNavigate, address, referralPoints }: { view: Vi
           <button key={n.v} onClick={() => onNavigate(n.v)} aria-current={view === n.v ? "page" : undefined} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 500, color: view === n.v ? C.text : C.textDim }}>{n.label}</button>
         ))}
       </nav>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <ThemeToggle />
       {address ? (
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {referralPoints > 0 && (
@@ -41,6 +44,7 @@ export function TopBar({ view, onNavigate, address, referralPoints }: { view: Vi
           </button>
         </div>
       ) : <ConnectPill />}
+      </div>
     </header>
   );
 }
