@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useRef, useCallback, ReactNode } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useAccount, useWriteContract } from "wagmi";
+import { useAccount, useSwitchChain, useWriteContract } from "wagmi";
+import { base } from "wagmi/chains";
 import { isAddress, parseEventLogs, parseUnits, WaitForTransactionReceiptTimeoutError } from "viem";
 import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURATIONS, DropInfo, parseDropInfo } from "../lib/contract";
 import { View, LeaderboardEntry } from "../lib/types";
@@ -65,7 +66,7 @@ function Field({ id, label, children }: { id: string; label: string; children: R
 
 export default function HomeClient() {
   const { setFrameReady, isFrameReady } = useMiniKit();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId: walletChainId } = useAccount();
   const [view, setView] = useState<View>("home");
 
   const [amountPerClaim, setAmountPerClaim] = useState("1");
@@ -200,12 +201,20 @@ export default function HomeClient() {
     return () => { alive = false; };
   }, [address, claimDropId, claimStep]);
 
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync: rawWrite } = useWriteContract();
+  const { switchChainAsync } = useSwitchChain();
+  // Every write goes to Base: switch the wallet first if it is on another network,
+  // and pin chainId so wagmi refuses to sign on the wrong chain.
+  const writeContractAsync = (async (args: Parameters<typeof rawWrite>[0]) => {
+    if (walletChainId !== base.id) await switchChainAsync({ chainId: base.id });
+    return rawWrite({ ...args, chainId: base.id } as Parameters<typeof rawWrite>[0]);
+  }) as typeof rawWrite;
 
   const RECEIPT_TIMEOUT = 120_000;
   const walletMsg = (e: unknown, fallback: string) => {
     const m = e instanceof Error ? e.message : "";
     if (/reject|denied/i.test(m)) return "You cancelled the request in your wallet.";
+    if (/chain mismatch|switch chain|unsupported chain|does not match the target chain|ChainNotConfigured/i.test(m)) return "Switch your wallet to the Base network and try again.";
     if (e instanceof WaitForTransactionReceiptTimeoutError) return "The transaction was sent but is taking longer than usual to confirm. Check it on Basescan before trying again.";
     return fallback;
   };
