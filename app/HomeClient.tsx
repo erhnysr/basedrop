@@ -186,7 +186,9 @@ export default function HomeClient() {
       .then(info => {
         if (!alive) return;
         const d = parseDropInfo(Number(id), info as readonly unknown[]);
-        if (/^0x0{40}$/i.test(d.creator)) { setDropInfo(null); setDropMissing(true); } else setDropInfo(d);
+        if (/^0x0{40}$/i.test(d.creator)) { setDropInfo(null); setDropMissing(true); return; }
+        // An RPC node a block behind can return pre-claim state; never let a stale read undo our own confirmed claim.
+        setDropInfo(prev => prev && prev.id === d.id && prev.claimedCount > d.claimedCount ? { ...d, claimedCount: prev.claimedCount, active: prev.active } : d);
       })
       .catch(() => { if (alive) { setDropInfo(null); setDropMissing(true); } });
     return () => { alive = false; };
@@ -261,6 +263,7 @@ export default function HomeClient() {
       const receipt = await rpc.waitForTransactionReceipt({ hash: tx, timeout: RECEIPT_TIMEOUT });
       if (receipt.status !== "success") throw new Error("Transaction reverted");
       setClaimBlock(receipt.blockNumber);
+      setDropInfo(prev => prev ? { ...prev, claimedCount: prev.claimedCount + 1, active: prev.claimedCount + 1 < prev.totalClaims } : prev);
       setClaimStep("done"); haptic.notify("success"); fetchAllDrops();
 
       // Server verifies the Claimed event itself; only the tx hash is sent.
