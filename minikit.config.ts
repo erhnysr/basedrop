@@ -1,8 +1,5 @@
-const ROOT_URL =
-  process.env.NEXT_PUBLIC_URL ||
-  (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
-  "http://localhost:3000";
-
+// Always the production domain: the manifest is signed for it, and a per-deploy VERCEL_URL
+// would send Base App users to an old, frozen preview build.
 const PRODUCTION_URL = "https://basedrop-chi.vercel.app";
 
 export const minikitConfig = {
@@ -21,10 +18,9 @@ export const minikitConfig = {
     description: "Basedrop is the onchain reward layer for Base's agent economy. Anyone — a human or an AI agent over MCP — can create USDC drops and claim them. Programmable rewards, zero platform fees, fully onchain on Base.",
     screenshotUrls: [`${PRODUCTION_URL}/screenshot-1.png`, `${PRODUCTION_URL}/screenshot-2.png`, `${PRODUCTION_URL}/screenshot-3.png`],
     iconUrl: `${PRODUCTION_URL}/icon.png`,
-    splashImageUrl: `${ROOT_URL}/splash.png`,
+    splashImageUrl: `${PRODUCTION_URL}/splash.png`,
     splashBackgroundColor: "#0A0B0F",
-    homeUrl: ROOT_URL,
-    webhookUrl: `${ROOT_URL}/api/webhook`,
+    homeUrl: PRODUCTION_URL,
     primaryCategory: "finance",
     tags: ["usdc", "agents", "mcp", "rewards", "base"],
     heroImageUrl: `${PRODUCTION_URL}/hero.png`,
