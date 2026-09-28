@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
 
   let d: DropInfo | null = null;
   let name: string | null = null;
-  if (id !== null) {
+  const nextId = id !== null ? await withTimeout(rpc.readContract({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "nextDropId" }), 4000) : null;
+  if (id !== null && typeof nextId === "bigint" && BigInt(id) < nextId) {
     const info = await withTimeout(rpc.readContract({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "getDropInfo", args: [BigInt(id)] }), 8000);
     if (info) d = parseDropInfo(id, info as readonly unknown[]);
     if (d) name = await withTimeout(getBasename(d.creator as `0x${string}`), 4000);

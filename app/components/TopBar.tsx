@@ -25,7 +25,7 @@ export function TopBar({ view, onNavigate, address, referralPoints }: { view: Vi
       <Brand onClick={() => onNavigate("home")} />
       <nav className="bd-topnav" aria-label="Primary">
         {NAV.map(n => (
-          <button key={n.v} onClick={() => onNavigate(n.v)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 500, color: view === n.v ? C.text : C.textDim }}>{n.label}</button>
+          <button key={n.v} onClick={() => onNavigate(n.v)} aria-current={view === n.v ? "page" : undefined} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 500, color: view === n.v ? C.text : C.textDim }}>{n.label}</button>
         ))}
       </nav>
       {address ? (

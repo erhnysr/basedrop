@@ -14,7 +14,8 @@ export const baseTransport = BASE_RPC_URL === PUBLIC_RPC
   ? http(PUBLIC_RPC)
   : fallback([http(BASE_RPC_URL), http(PUBLIC_RPC)]);
 
-export const rpc = createPublicClient({ chain: base, transport: baseTransport });
+// multicall batching folds the per-drop getDropInfo reads into one eth_call.
+export const rpc = createPublicClient({ chain: base, transport: baseTransport, batch: { multicall: true } });
 
 // L1 client for ENS / Basename forward verification. viem's default mainnet RPC
 // rejects browser (CORS) requests, which silently hides every Basename.

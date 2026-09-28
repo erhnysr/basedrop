@@ -24,7 +24,7 @@ export function Ticket({ d, meta, footer, onClick }: { d: DropInfo; meta?: React
   return (
     <Card className={onClick ? "bd-press bd-fade" : "bd-fade"} style={{ marginBottom: 12, cursor: onClick ? "pointer" : "default" }}>
       <div onClick={onClick} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}
-        onKeyDown={e => { if (onClick && (e.key === "Enter" || e.key === " ")) onClick(); }}>
+        onKeyDown={e => { if (onClick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onClick(); } }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 16px 12px" }}>
           <Avatar address={d.creator} size={40} />
           <div style={{ flex: 1, minWidth: 0 }}>

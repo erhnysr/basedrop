@@ -73,11 +73,11 @@ export function LinkButton({ children, onClick }: { children: ReactNode; onClick
   return <button onClick={onClick} style={{ background: "none", border: "none", color: C.accent, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>{children}</button>;
 }
 
-export function PageHead({ title, sub, onBack }: { title: string; sub?: string; onBack?: () => void }) {
+export function PageHead({ title, sub, onBack, backDisabled }: { title: string; sub?: string; onBack?: () => void; backDisabled?: boolean }) {
   return (
     <div style={{ marginBottom: 24 }}>
       {onBack && (
-        <button onClick={onBack} aria-label="Back" className="bd-press" style={{ width: 40, height: 40, borderRadius: RADIUS.ctl, background: C.surface, border: `1px solid ${C.hairline}`, display: "grid", placeItems: "center", marginBottom: 20, cursor: "pointer", color: C.text }}>
+        <button onClick={onBack} disabled={backDisabled} aria-label="Back" className="bd-press" style={{ width: 40, height: 40, borderRadius: RADIUS.ctl, background: C.surface, border: `1px solid ${C.hairline}`, display: "grid", placeItems: "center", marginBottom: 20, cursor: backDisabled ? "not-allowed" : "pointer", opacity: backDisabled ? 0.4 : 1, color: C.text }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 5l-7 7 7 7" /></svg>
         </button>
       )}

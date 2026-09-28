@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback, ReactNode } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useAccount, useWriteContract } from "wagmi";
-import { parseUnits } from "viem";
+import { isAddress, parseEventLogs, parseUnits, WaitForTransactionReceiptTimeoutError } from "viem";
 import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURATIONS, DropInfo, parseDropInfo } from "../lib/contract";
 import { View, LeaderboardEntry } from "../lib/types";
 import { shortAddr, formatUSDC, timeLeft } from "../lib/format";
@@ -37,9 +37,9 @@ function parseDropRef(input: string): string | null {
   return /^\d+$/.test(n) ? n : null;
 }
 
-function Segmented<T extends string | number>({ options, value, onChange, disabled, label }: { options: readonly T[]; value: T | null; onChange: (v: T) => void; disabled?: boolean; label: (v: T) => ReactNode }) {
+function Segmented<T extends string | number>({ options, value, onChange, disabled, label, labelledBy }: { options: readonly T[]; value: T | null; onChange: (v: T) => void; disabled?: boolean; label: (v: T) => ReactNode; labelledBy?: string }) {
   return (
-    <div role="radiogroup" style={{ display: "grid", gridTemplateColumns: `repeat(${options.length}, 1fr)`, gap: 4, padding: 4, background: C.sunken, borderRadius: RADIUS.ctl }}>
+    <div role="radiogroup" aria-labelledby={labelledBy} style={{ display: "grid", gridTemplateColumns: `repeat(${options.length}, 1fr)`, gap: 4, padding: 4, background: C.sunken, borderRadius: RADIUS.ctl }}>
       {options.map(o => {
         const on = o === value;
         return (
@@ -57,7 +57,7 @@ function Segmented<T extends string | number>({ options, value, onChange, disabl
 function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label htmlFor={id} style={{ display: "block", marginBottom: 8 }}><Eyebrow>{label}</Eyebrow></label>
+      <label id={`${id}-label`} htmlFor={id} style={{ display: "block", marginBottom: 8 }}><Eyebrow>{label}</Eyebrow></label>
       {children}
     </div>
   );
@@ -83,6 +83,11 @@ export default function HomeClient() {
   const [claimTx, setClaimTx] = useState<string | null>(null);
   const [claimBlock, setClaimBlock] = useState<bigint | null>(null);
   const [claimError, setClaimError] = useState("");
+  const [claimPending, setClaimPending] = useState(false);
+  const [dropMissing, setDropMissing] = useState(false);
+  const [alreadyClaimed, setAlreadyClaimed] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [tipFailError, setTipFailError] = useState("");
   const [dropInfo, setDropInfo] = useState<DropInfo | null>(null);
   const [allDrops, setAllDrops] = useState<DropInfo[]>([]);
   const [loadingDrops, setLoadingDrops] = useState(true);
@@ -128,10 +133,10 @@ export default function HomeClient() {
   // Parse ?claim= and ?ref= from URL
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
-    const id = p.get("claim");
+    const id = parseDropRef(p.get("claim") ?? "");
     const ref = p.get("ref");
-    if (id) { setClaimDropId(id); setView("claim"); }
-    if (ref) { setReferrerAddress(ref); }
+    if (p.get("claim") !== null) { setClaimDropId(id ?? ""); setClaimInputError(id === null); setView("claim"); }
+    if (ref && isAddress(ref)) { setReferrerAddress(ref); }
   }, []);
 
   // Fetch referral points for connected wallet
@@ -148,7 +153,7 @@ export default function HomeClient() {
       const nextId = await rpc.readContract({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "nextDropId" }) as bigint;
       const count = Number(nextId);
       const ids: number[] = [];
-      for (let i = count - 1; i >= 0 && i >= count - 20; i--) ids.push(i);
+      for (let i = count - 1; i >= 0 && i >= count - 200; i--) ids.push(i); // batched via multicall (lib/rpc.ts)
       const results = await Promise.allSettled(ids.map(i =>
         rpc.readContract({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "getDropInfo", args: [BigInt(i)] })
           .then(info => parseDropInfo(i, info as readonly unknown[]))));
@@ -172,92 +177,95 @@ export default function HomeClient() {
   useEffect(() => { fetchLeaderboard(); }, [fetchLeaderboard]);
 
   useEffect(() => {
-    if (!claimDropId || isNaN(Number(claimDropId))) return;
-    const id = parseInt(claimDropId) || 0;
-    rpc.readContract({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "getDropInfo", args: [BigInt(id)] }).then(info => setDropInfo(parseDropInfo(id, info as readonly unknown[]))).catch(() => {});
+    if (!/^\d+$/.test(claimDropId)) return;
+    const id = BigInt(claimDropId);
+    let alive = true;
+    setDropMissing(false);
+    rpc.readContract({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "getDropInfo", args: [id] })
+      .then(info => {
+        if (!alive) return;
+        const d = parseDropInfo(Number(id), info as readonly unknown[]);
+        if (/^0x0{40}$/i.test(d.creator)) { setDropInfo(null); setDropMissing(true); } else setDropInfo(d);
+      })
+      .catch(() => { if (alive) { setDropInfo(null); setDropMissing(true); } });
+    return () => { alive = false; };
   }, [claimDropId, claimStep]);
 
+  useEffect(() => {
+    setAlreadyClaimed(false);
+    if (!address || !/^\d+$/.test(claimDropId)) return;
+    let alive = true;
+    rpc.readContract({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "hasUserClaimed", args: [BigInt(claimDropId), address] })
+      .then(v => { if (alive) setAlreadyClaimed(Boolean(v)); }).catch(() => {});
+    return () => { alive = false; };
+  }, [address, claimDropId, claimStep]);
+
   const { writeContractAsync } = useWriteContract();
+
+  const RECEIPT_TIMEOUT = 120_000;
+  const walletMsg = (e: unknown, fallback: string) => {
+    const m = e instanceof Error ? e.message : "";
+    if (/reject|denied/i.test(m)) return "You cancelled the request in your wallet.";
+    if (e instanceof WaitForTransactionReceiptTimeoutError) return "The transaction was sent but is taking longer than usual to confirm. Check it on Basescan before trying again.";
+    return fallback;
+  };
 
   const handleCreate = async () => {
     if (!isConnected || !address) return;
     try {
+      setCreateError(""); setCreateTx(null);
       const amt = amountRef.current, claims = claimsRef.current, dur = durationRef.current, msg = messageRef.current;
-      const amtUnits = BigInt(Math.round(parseFloat(amt) * 10 ** USDC_DECIMALS));
+      const amtUnits = parseUnits(amt, USDC_DECIMALS);
       const totalAmt = amtUnits * BigInt(claims);
       setStep("approving");
-      await writeContractAsync({ address: USDC_ADDRESS, abi: USDC_ABI, functionName: "approve", args: [ESCROW_ADDRESS, totalAmt], dataSuffix: BUILDER_CODE });
-      for (let i = 0; i < 30; i++) {
-        const a = await rpc.readContract({ address: USDC_ADDRESS, abi: USDC_ABI, functionName: "allowance", args: [address, ESCROW_ADDRESS] });
-        if ((a as bigint) >= totalAmt) break;
-        await new Promise(r => setTimeout(r, 2000));
+      const allowance = await rpc.readContract({ address: USDC_ADDRESS, abi: USDC_ABI, functionName: "allowance", args: [address, ESCROW_ADDRESS] }) as bigint;
+      if (allowance < totalAmt) {
+        const approveTx = await writeContractAsync({ address: USDC_ADDRESS, abi: USDC_ABI, functionName: "approve", args: [ESCROW_ADDRESS, totalAmt], dataSuffix: BUILDER_CODE });
+        const ar = await rpc.waitForTransactionReceipt({ hash: approveTx, timeout: RECEIPT_TIMEOUT });
+        if (ar.status !== "success") throw new Error("Approve reverted");
       }
       setStep("creating");
-      const prevId = await rpc.readContract({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "nextDropId" }) as bigint;
       const tx = await writeContractAsync({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "createDrop", args: [amtUnits, BigInt(claims), BigInt(DURATIONS[dur]), msg], dataSuffix: BUILDER_CODE });
       setCreateTx(tx);
-      for (let i = 0; i < 30; i++) {
-        const nId = await rpc.readContract({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "nextDropId" }) as bigint;
-        if (nId > prevId) {
-          setCreatedDropId(String(Number(prevId))); setStep("done"); haptic.notify("success"); fetchAllDrops();
-          fetch("/api/drops", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              creator_address: address,
-              amount_per_claim: amt,
-              total_claims: claims,
-              expires_at: new Date(Date.now() + DURATIONS[dur] * 1000).toISOString(),
-              message: msg,
-              tx_hash: tx,
-              onchain_id: Number(prevId),
-            }),
-          }).catch(() => {});
-          return;
-        }
-        await new Promise(r => setTimeout(r, 2000));
-      }
-      setStep("done"); setCreatedDropId("0");
-    } catch (e) { console.error(e); setStep("idle"); haptic.notify("error"); }
+      const receipt = await rpc.waitForTransactionReceipt({ hash: tx, timeout: RECEIPT_TIMEOUT });
+      if (receipt.status !== "success") throw new Error("Create reverted");
+      // The id comes from this tx's own DropCreated event, never from a nextDropId guess.
+      const created = parseEventLogs({ abi: ESCROW_ABI, logs: receipt.logs, eventName: "DropCreated" })
+        .find(l => l.address.toLowerCase() === ESCROW_ADDRESS.toLowerCase());
+      if (!created) throw new Error("DropCreated event missing");
+      setCreatedDropId(String(created.args.dropId)); setStep("done"); haptic.notify("success"); fetchAllDrops();
+      fetch("/api/drops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tx_hash: tx }) }).catch(() => {});
+    } catch (e) {
+      console.error(e); setStep("idle"); haptic.notify("error");
+      setCreateError(walletMsg(e, "The drop wasn't created. Check you have enough USDC on Base and try again."));
+    }
   };
 
   const handleClaim = async () => {
-    if (!claimDropId) return;
+    if (!/^\d+$/.test(claimDropId)) return;
     try {
-      setClaimError("");
+      setClaimError(""); setClaimPending(false);
       setClaimStep("signing");
-      const tx = await writeContractAsync({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "claim", args: [BigInt(parseInt(claimDropId) || 0)], dataSuffix: BUILDER_CODE });
+      const tx = await writeContractAsync({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "claim", args: [BigInt(claimDropId)], dataSuffix: BUILDER_CODE });
       setClaimTx(tx);
       setClaimStep("sending");
-      const receipt = await rpc.waitForTransactionReceipt({ hash: tx });
+      const receipt = await rpc.waitForTransactionReceipt({ hash: tx, timeout: RECEIPT_TIMEOUT });
       if (receipt.status !== "success") throw new Error("Transaction reverted");
       setClaimBlock(receipt.blockNumber);
       setClaimStep("done"); haptic.notify("success"); fetchAllDrops();
 
-      // Record claim in Supabase
-      fetch("/api/claims", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ drop_id: claimDropId, claimer_address: address, tx_hash: tx }),
-      }).catch(() => {});
-
-      // Record referral if link came from a referrer
+      // Server verifies the Claimed event itself; only the tx hash is sent.
+      const post = (url: string, body: object) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => {});
+      post("/api/claims", { tx_hash: tx });
       if (referrerAddress && address && referrerAddress.toLowerCase() !== address.toLowerCase()) {
-        fetch("/api/referrals", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            referrer_address: referrerAddress,
-            referee_address: address,
-            drop_id: parseInt(claimDropId) || 0,
-          }),
-        }).catch(() => {});
+        post("/api/referrals", { referrer_address: referrerAddress, tx_hash: tx });
       }
     } catch (e) {
       console.error(e);
-      setClaimStep("idle"); haptic.notify("error");
-      const msg = e instanceof Error ? e.message : "";
-      setClaimError(/reject|denied/i.test(msg) ? "You cancelled the request in your wallet." : "The claim didn't go through. You may have already claimed this drop, or it just ran out.");
+      haptic.notify("error");
+      setClaimStep("idle");
+      if (e instanceof WaitForTransactionReceiptTimeoutError) setClaimPending(true);
+      setClaimError(walletMsg(e, "The claim didn't go through. You may have already claimed this drop, or it just ran out."));
     }
   };
 
@@ -266,7 +274,8 @@ export default function HomeClient() {
     try {
       setCancellingId(dropId);
       const tx = await writeContractAsync({ address: ESCROW_ADDRESS, abi: ESCROW_ABI, functionName: "cancelDrop", args: [BigInt(dropId)], dataSuffix: BUILDER_CODE });
-      await rpc.waitForTransactionReceipt({ hash: tx });
+      const r = await rpc.waitForTransactionReceipt({ hash: tx, timeout: RECEIPT_TIMEOUT });
+      if (r.status !== "success") throw new Error("Cancel reverted");
       haptic.notify("success");
       await fetchAllDrops();
     } catch (e) { console.error(e); }
@@ -293,6 +302,7 @@ export default function HomeClient() {
     const amt = tipCustom ? parseFloat(tipCustom) : tipPreset;
     if (!isConnected || !address || !tipRecipient || !amt || amt <= 0 || isNaN(amt)) return;
     try {
+      setTipFailError("");
       setTipStep("signing");
       const tx = await writeContractAsync({
         address: USDC_ADDRESS,
@@ -303,25 +313,29 @@ export default function HomeClient() {
       });
       setTipTxHash(tx);
       setTipStep("sending");
-      const receipt = await rpc.waitForTransactionReceipt({ hash: tx });
+      const receipt = await rpc.waitForTransactionReceipt({ hash: tx, timeout: RECEIPT_TIMEOUT });
+      if (receipt.status !== "success") throw new Error("Transfer reverted");
       setTipBlock(receipt.blockNumber);
       setTipSentAmount(amt);
       setTipStep("done"); haptic.notify("success");
       fetch("/api/tips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipper_address: address, recipient_address: tipRecipient, amount: amt, tx_hash: tx }),
+        body: JSON.stringify({ tx_hash: tx }),
       }).then(() => fetchLeaderboard()).catch(() => {});
-    } catch (e) { console.error(e); setTipStep("idle"); haptic.notify("error"); }
+    } catch (e) {
+      console.error(e); setTipStep("idle"); haptic.notify("error");
+      setTipFailError(walletMsg(e, "The tip didn't go through. Check you have enough USDC on Base."));
+    }
   };
 
   const shareLink = createdDropId !== null ? `${BASE_URL}?claim=${createdDropId}` : "";
   const handleCopy = () => { navigator.clipboard.writeText(shareLink).catch(() => {}); setCopied(true); haptic.tap("light"); setTimeout(() => setCopied(false), 2000); };
-  const openClaim = (id: number) => { setClaimDropId(String(id)); setClaimStep("idle"); setClaimTx(null); setClaimBlock(null); setClaimError(""); setDropInfo(null); setView("claim"); };
+  const openClaim = (id: number | string) => { setClaimDropId(String(id)); setClaimStep("idle"); setClaimTx(null); setClaimBlock(null); setClaimError(""); setClaimPending(false); setDropMissing(false); setDropInfo(null); setView("claim"); };
   const submitClaimInput = () => {
     const id = parseDropRef(claimInput);
     if (id === null) { setClaimInputError(true); return; }
-    setClaimInputError(false); setClaimInput(""); openClaim(Number(id));
+    setClaimInputError(false); setClaimInput(""); openClaim(id);
   };
   const castUrl = (text: string, embed: string) => `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(embed)}`;
 
@@ -368,11 +382,13 @@ export default function HomeClient() {
       </>
     );
 
-    const total = (parseFloat(amountPerClaim || "0") * parseInt(totalClaims || "0")) || 0;
+    const claimsOk = /^\d+$/.test(totalClaims) && Number(totalClaims) >= 1;
+    const amountOk = /^\d*\.?\d{0,6}$/.test(amountPerClaim) && parseFloat(amountPerClaim) >= 0.01;
+    const total = claimsOk && amountOk ? parseFloat(amountPerClaim) * Number(totalClaims) : 0;
     const busy = step !== "idle";
     return shell(
       <>
-        <PageHead title="Create a drop" sub="USDC that anyone can claim, human or agent. Funds sit in escrow until claimed, and you can cancel for a refund." onBack={() => { setView("home"); setStep("idle"); }} />
+        <PageHead title="Create a drop" sub="USDC that anyone can claim, human or agent. Funds sit in escrow until claimed, and you can cancel for a refund." onBack={() => { setView("home"); setCreateError(""); }} backDisabled={step !== "idle"} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field id="amt" label="Amount each (USDC)">
             <input id="amt" value={amountPerClaim} onChange={e => setAmountPerClaim(e.target.value)} type="number" inputMode="decimal" min="0.01" step="0.01" disabled={busy} style={{ ...inputStyle, ...TNUM, fontWeight: 600 }} />
@@ -382,7 +398,7 @@ export default function HomeClient() {
           </Field>
         </div>
         <Field id="dur" label="Expires in">
-          <Segmented options={Object.keys(DURATIONS)} value={duration} onChange={v => !busy && setDuration(v)} disabled={busy} label={v => v} />
+          <Segmented labelledBy="dur-label" options={Object.keys(DURATIONS)} value={duration} onChange={v => !busy && setDuration(v)} disabled={busy} label={v => v} />
         </Field>
         <Field id="msg" label="Message (optional)">
           <input id="msg" value={message} onChange={e => setMessage(e.target.value)} disabled={busy} maxLength={120} placeholder="Thanks for testing the agent flow" style={inputStyle} />
@@ -398,10 +414,12 @@ export default function HomeClient() {
         <div style={{ marginTop: 16 }}>
           {!isConnected ? <ConnectPill full /> : (
             <Button size="lg" onClick={handleCreate} disabled={busy || total <= 0}>
-              {step === "idle" ? `Launch drop · $${total.toFixed(2)}` : step === "approving" ? "Approve USDC in your wallet…" : "Creating drop on Base…"}
+              {step === "idle" ? (total > 0 ? `Launch drop · $${total.toFixed(2)}` : "Enter an amount (min $0.01) and whole recipients") : step === "approving" ? "Approve USDC in your wallet…" : "Creating drop on Base…"}
             </Button>
           )}
         </div>
+        {createError && <p role="alert" style={{ fontSize: 13, color: C.danger, marginTop: 12 }}>{createError}</p>}
+        {createError && <Receipt tx={createTx} />}
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 16, fontFamily: FONT_MONO, fontSize: 11, color: C.textFaint, flexWrap: "wrap" }}>
           <span>Zero platform fees · Base</span>
           <span style={{ color: C.accent, background: C.accentDim, borderRadius: 999, padding: "1px 8px" }}>MCP</span>
@@ -423,7 +441,7 @@ export default function HomeClient() {
     return shell(
       <>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-          <button onClick={() => { setView("home"); setClaimStep("idle"); }} aria-label="Back" className="bd-press" style={{ width: 40, height: 40, borderRadius: RADIUS.ctl, background: C.surface, border: `1px solid ${C.hairline}`, display: "grid", placeItems: "center", cursor: "pointer", color: C.text }}>
+          <button onClick={() => { setView("home"); setClaimStep("idle"); }} disabled={busy} aria-label="Back" className="bd-press" style={{ width: 40, height: 40, borderRadius: RADIUS.ctl, background: C.surface, border: `1px solid ${C.hairline}`, display: "grid", placeItems: "center", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.4 : 1, color: C.text }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 5l-7 7 7 7" /></svg>
           </button>
           <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: C.textDim }}>{claimDropId ? `Drop #${claimDropId}` : "Claim a drop"}</span>
@@ -457,6 +475,8 @@ export default function HomeClient() {
               <div style={{ padding: "0 20px 20px", display: "flex" }}><ProgressBar pct={claimedPct(di)} height={6} /></div>
             </div>
           </Card>
+        ) : claimDropId && dropMissing ? (
+          <EmptyTicket text={`We couldn't find drop #${claimDropId}. Check the link or number.`} cta="Explore live drops" onCta={() => setView("explore")} />
         ) : claimDropId ? (
           <TicketSkeleton count={1} />
         ) : (
@@ -473,6 +493,10 @@ export default function HomeClient() {
             <Button size="lg" onClick={submitClaimInput} disabled={!claimInput.trim()}>Find drop</Button>
           ) : done ? null : di && !isLive ? (
             <EmptyTicket text={!di.active && di.claimedCount >= di.totalClaims ? "Every claim in this drop has been taken." : isExpired ? "This drop has expired." : "This drop is closed."} cta="Explore live drops" onCta={() => setView("explore")} />
+          ) : claimPending ? (
+            <Receipt tx={claimTx} />
+          ) : alreadyClaimed ? (
+            <EmptyTicket text="You've already claimed this drop with this wallet." cta="Explore live drops" onCta={() => setView("explore")} />
           ) : !isConnected ? (
             <ConnectPill full />
           ) : isLive ? (
@@ -566,7 +590,7 @@ export default function HomeClient() {
 
     return shell(
       <>
-        <PageHead title="Send a tip" sub="USDC straight to any wallet, ENS name or Basename. No platform fee." onBack={() => setView("home")} />
+        <PageHead title="Send a tip" sub="USDC straight to any wallet, ENS name or Basename. No platform fee." onBack={() => { setView("home"); setTipFailError(""); }} backDisabled={tipStep === "signing" || tipStep === "sending"} />
         {!tipRecipient ? (
           <>
             <Field id="recipient" label="Recipient">
@@ -588,10 +612,11 @@ export default function HomeClient() {
               <Button variant="soft" size="sm" full={false} onClick={changeTipRecipient} disabled={busy}>Change</Button>
             </Card>
             <Field id="tipamt" label="Amount">
-              <Segmented options={TIP_AMOUNTS} value={tipCustom ? null : tipPreset} onChange={a => { if (!busy) { setTipPreset(a); setTipCustom(""); } }} disabled={busy} label={a => `$${a}`} />
+              <Segmented labelledBy="tipamt-label" options={TIP_AMOUNTS} value={tipCustom ? null : tipPreset} onChange={a => { if (!busy) { setTipPreset(a); setTipCustom(""); } }} disabled={busy} label={a => `$${a}`} />
             </Field>
             <input aria-label="Custom amount" value={tipCustom} onChange={e => setTipCustom(e.target.value)} type="number" inputMode="decimal" min="0.01" step="0.01" disabled={busy} placeholder="Custom amount" style={{ ...inputStyle, ...TNUM, borderColor: tipCustom ? "var(--bd-blue)" : undefined }} />
             <TxSteps steps={["Sign", "Send", "Confirmed"]} current={tipStep === "signing" ? 1 : tipStep === "sending" ? 2 : 0} />
+            {tipFailError && <p role="alert" style={{ fontSize: 13, color: C.danger, margin: "12px 0" }}>{tipFailError}</p>}
             <div style={{ marginTop: 16 }}>
               {!isConnected ? <ConnectPill full /> : (
                 <Button size="lg" onClick={handleSendTip} disabled={busy || !tipAmt || tipAmt <= 0}>

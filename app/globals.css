@@ -220,6 +220,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+  .bd-torn .bd-stamp { opacity: 1; transform: rotate(-10deg); } /* show the stamp without the animation */
 }
 
 /* ─── ripples: drop rings spreading from the Base-blue light source ─── */

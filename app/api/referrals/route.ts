@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAddress } from "viem";
 import { supabase } from "@/lib/supabase";
+import { verifyClaim } from "@/lib/verify";
 
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address");
@@ -21,27 +23,27 @@ export async function GET(req: NextRequest) {
   });
 }
 
+// Credits a referral only for a verified claim: the referee and drop come from the
+// claim's on-chain event, so points can't be minted with made-up addresses.
 export async function POST(req: NextRequest) {
-  const { referrer_address, referee_address, drop_id } = await req.json();
-
-  if (!referrer_address || !referee_address || drop_id === undefined) {
-    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  const { referrer_address, tx_hash } = await req.json().catch(() => ({}));
+  if (typeof referrer_address !== "string" || !isAddress(referrer_address)) {
+    return NextResponse.json({ error: "Invalid referrer" }, { status: 400 });
   }
+  const claim = await verifyClaim(tx_hash);
+  if (!claim) return NextResponse.json({ error: "Transaction is not a successful Basedrop claim" }, { status: 400 });
 
-  // No self-referrals
-  if (referrer_address.toLowerCase() === referee_address.toLowerCase()) {
-    return NextResponse.json({ ok: false, reason: "self_referral" });
-  }
+  const referrer = referrer_address.toLowerCase();
+  if (referrer === claim.claimer) return NextResponse.json({ ok: false, reason: "self_referral" });
 
   const { error } = await supabase.from("referrals").insert({
-    referrer_address: referrer_address.toLowerCase(),
-    referee_address: referee_address.toLowerCase(),
-    drop_id: Number(drop_id),
+    referrer_address: referrer,
+    referee_address: claim.claimer,
+    drop_id: claim.dropId,
     points: 1,
   });
 
   if (error) {
-    // Unique violation → already recorded
     if (error.code === "23505") return NextResponse.json({ ok: true, duplicate: true });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

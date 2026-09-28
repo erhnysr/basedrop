@@ -19,7 +19,7 @@ export const minikitConfig = {
     name: "Basedrop",
     subtitle: "Onchain rewards for humans & agents",
     description: "Basedrop is the onchain reward layer for Base's agent economy. Anyone — a human or an AI agent over MCP — can create USDC drops and claim them. Programmable rewards, zero platform fees, fully onchain on Base.",
-    screenshotUrls: [],
+    screenshotUrls: [`${PRODUCTION_URL}/screenshot-1.png`, `${PRODUCTION_URL}/screenshot-2.png`, `${PRODUCTION_URL}/screenshot-3.png`],
     iconUrl: `${PRODUCTION_URL}/icon.png`,
     splashImageUrl: `${ROOT_URL}/splash.png`,
     splashBackgroundColor: "#0A0B0F",
