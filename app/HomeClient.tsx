@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef, useCallback, ReactNode } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useAccount, useSwitchChain, useWriteContract } from "wagmi";
+import { useAccount, useDisconnect, useSwitchChain, useWriteContract } from "wagmi";
 import { base } from "wagmi/chains";
 import { isAddress, parseEventLogs, parseUnits, WaitForTransactionReceiptTimeoutError } from "viem";
 import { USDC_ADDRESS, USDC_ABI, ESCROW_ADDRESS, ESCROW_ABI, USDC_DECIMALS, DURATIONS, DropInfo, parseDropInfo } from "../lib/contract";
@@ -205,6 +205,7 @@ export default function HomeClient() {
 
   const { writeContractAsync: rawWrite } = useWriteContract();
   const { switchChainAsync } = useSwitchChain();
+  const { disconnect } = useDisconnect();
   // Every write goes to Base: switch the wallet first if it is on another network,
   // and pin chainId so wagmi refuses to sign on the wrong chain.
   const writeContractAsync = (async (args: Parameters<typeof rawWrite>[0]) => {
@@ -576,6 +577,11 @@ export default function HomeClient() {
       ) : loadingDrops ? <TicketSkeleton count={2} />
         : myDrops.length === 0 ? <EmptyTicket text="You haven't created a drop yet." cta="Create your first drop" onCta={() => setView("create")} />
         : myDrops.map(d => <MyDropCard key={d.id} d={d} onCancel={handleCancel} cancelling={cancellingId === d.id} />)}
+      {isConnected && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 20 }}>
+          <button className="bd-press" onClick={() => disconnect()} style={{ background: "none", border: "none", fontSize: 13, fontWeight: 500, color: C.textDim, cursor: "pointer", padding: 8 }}>Disconnect wallet</button>
+        </div>
+      )}
     </>
   );
 
