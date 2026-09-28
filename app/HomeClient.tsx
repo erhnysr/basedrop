@@ -303,7 +303,8 @@ export default function HomeClient() {
     setTipResolving(false);
     if (!addr) { setTipError("We couldn't find that address or name. Check the spelling, or paste the 0x address."); return; }
     setTipRecipient(addr);
-    setTipRecipientName(q);
+    // A pasted 0x address isn't a name: leave it empty so DisplayName shows the Basename or a short address.
+    setTipRecipientName(isAddress(q) ? "" : q);
   };
 
   const changeTipRecipient = () => {
