@@ -5,7 +5,7 @@ import { baseTransport, mainnetRpc } from "../lib/rpc";
 import { useResolvedTheme } from "../lib/theme-mode";
 import { mainnet } from "wagmi/chains";
 import { base } from "wagmi/chains";
-import { coinbaseWallet, metaMask, injected } from "wagmi/connectors";
+import { baseAccount, coinbaseWallet, metaMask, injected } from "wagmi/connectors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import "@coinbase/onchainkit/styles.css";
@@ -14,7 +14,10 @@ const queryClient = new QueryClient();
 
 const wagmiConfig = createConfig({
   chains: [base],
+  // baseAccount is listed so a "Sign in with Base" session survives a reload
+  // (wagmi only reconnects connectors that are in the config).
   connectors: [
+    baseAccount({ appName: "Basedrop", appLogoUrl: "https://basedrop-chi.vercel.app/icon.png" }),
     injected(),
     metaMask(),
     coinbaseWallet({ appName: "Basedrop" }),
