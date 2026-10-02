@@ -23,7 +23,9 @@ import { Card, Button, Eyebrow, Money, SectionHead, LinkButton, PageHead, inputS
 import { TicketSkeleton, EmptyTicket, TxSteps, Receipt, AgentCard, Chip } from "./components/States";
 import { IconTrophy, IconGem, IconSend, IconCopy, IconCheck, IconLink, IconArrowUpRight, IconRefresh } from "./components/Icon";
 
-const BUILDER_CODE: `0x${string}` = "0x62635f646e33726c353437";
+// ERC-8021 data suffix for Basedrop's base.dev builder code bc_w5rg00px
+// (code bytes + length + schema 0x00 + 8021 marker), copied from the dashboard's "Encoded String".
+const BUILDER_CODE: `0x${string}` = "0x62635f77357267303070780b0080218021802180218021802180218021";
 const TIP_AMOUNTS = [0.5, 1, 2, 5] as const;
 const KPI_MIN_USD = 100; // hide platform totals until they mean something
 
